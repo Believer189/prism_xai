@@ -1,0 +1,72 @@
+
+@import "tailwindcss";
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  button,
+  select {
+    display: none !important;
+  }
+
+  .break-inside-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Keep the dark boxes dark */
+  div:has(> p),
+  section,
+  article {
+    box-shadow: none !important;
+  }
+
+  /* Make text inside dark boxes white */
+  .bg-slate-900,
+  .bg-gray-900,
+  .bg-slate-800,
+  .bg-gray-800,
+  .bg-\[\#111827\],
+  .bg-\[\#0f172a\] {
+    background-color: #111827 !important;
+    color: #ffffff !important;
+  }
+
+  .bg-slate-900 *,
+  .bg-gray-900 *,
+  .bg-slate-800 *,
+  .bg-gray-800 *,
+  .bg-\[\#111827\] *,
+  .bg-\[\#0f172a\] * {
+    color: #ffffff !important;
+  }
+
+  /* Keep headings and text outside dark boxes black */
+  p,
+  span,
+  h1,
+  h2,
+  h3,
+  strong {
+    color: #000000 !important;
+  }
+
+  /* Apply white text to the contents of the dark boxes,
+     overriding the general black text rule above */
+  .bg-slate-900 p,
+  .bg-slate-900 span,
+  .bg-slate-900 strong,
+  .bg-gray-900 p,
+  .bg-gray-900 span,
+  .bg-slate-800 p,
+  .bg-gray-800 p,
+  .bg-\[\#111827\] p,
+  .bg-\[\#0f172a\] p {
+    color: #ffffff !important;
+  }
+}
