@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import math
 
-app = FastAPI(title="PRISM Engine API", version="7.3")
+app = FastAPI(title="PRISM Engine API", version="7.4")
 
 app.add_middleware(
     CORSMiddleware,
@@ -54,7 +54,7 @@ SUTRAS_DB = {
         "name": "4. Bhāskara I's Rational Sine Approximation",
         "type": "Dynamic",
         "author": "Mahābhāskarīya (c. 629 CE), Chapter 7",
-        "sanskrit": "मख्यादिरहितं कर्म वक्ष्यते तत्समासतः । चक्रार्धांशकसमूहाद्विशोध्या ये भुजांशकाः ॥\nतच्छेषगुणिता द्विष्ठाः शोध्याः खाभ्रेषुखाब्धितः । चतुर्थांशेन शेषस्य द्विष्ठमन्त्यफलं हतम् ॥",
+        "sanskrit": "मख्यादिरहितं कर्म वक्ष्यते तत्समासतः ।\n चक्रार्धांशकसमूहाद्विशोध्या ये भुजांशकाः ॥\nतच्छेषगुणिता द्विष्ठाः शोध्याः खाभ्रेषुखाब्धितः ।\n चतुर्थांशेन शेषस्य द्विष्ठमन्त्यफलं हतम् ॥",
         "summary": "Calculates the sine of an angle without trigonometric tables using rational approximation accurate to within 1.8% from 0° to 180°.",
         "meaning": "• makhyādirahitam: Free of sine-difference tables beginning with 'makhi'.\n• karma vakṣyate: The procedure will be stated.\n• cakrārdhāmśakasamūhāt: From 180 degrees (half a circle).\n• viśodhyāḥ: Are to be subtracted.\n• ye bhujāmśakāḥ: The degrees of the arc (angle x).\n• taccheṣaguṇitā: Multiplied by that remainder (180 - x).\n• dvisthāḥ: Placed in two positions.\n• śodhyāḥ khābhreṣukhābdhitaḥ: Subtracted from 40,500.\n• caturthāmśena śeṣasya: By one-fourth of the remainder.",
         "input_guideline": "Enter an angle between 0 and 180 degrees to compute rational sine approximation.",
@@ -74,7 +74,7 @@ SUTRAS_DB = {
         "name": "6. Mādhava Sine Series",
         "type": "Dynamic",
         "author": "Mādhava (c. 1340-1425), Yuktidīpikā 2.440",
-        "sanskrit": "निहत्य चापवर्गेण चापं तत्तत्फलानि च । हरेत्समूलयुग्वगैस्त्रिज्यावर्गाहतैः क्रमात् ॥\nचापं फलानि चाधोऽधो न्यस्योपर्युपरि त्यजेत् । जीवाप्त्यै सङ्ग्रहोऽस्यैव विद्वानित्यादिना कृतः ॥",
+        "sanskrit": "निहत्य चापवर्गेण चापं तत्तत्फलानि च ।\n हरेत्समूलयुग्वगैस्त्रिज्यावर्गाहतैः क्रमात् ॥\nचापं फलानि चाधोऽधो न्यस्योपर्युपरि त्यजेत् ।\n जीवाप्त्यै सङ्ग्रहोऽस्यैव विद्वानित्यादिना कृतः ॥",
         "summary": "Infinite power series expansion for the sine function using arc powers divided by factorial/even integer products with alternating signs.",
         "meaning": "• nihatya: Having multiplied.\n• cāpavargeṇa: By the square of the arc (s²).\n• cāpam tattatphalāni ca: The arc and successive results.\n• haret: One should divide.\n• samūlayugvargaiḥ: By squares of even numbers increased by their roots.\n• trijyāvargāhataiḥ: Multiplied by the square of the radius (r²).\n• nyasyoparyupari tyajet: Placed below one another, subtract each from the one above.\n• jīvāptyai: For obtaining the Sine.",
         "input_guideline": "Enter positive angle parameter in degrees/radians to compute Mādhava's sine series.",
@@ -84,7 +84,7 @@ SUTRAS_DB = {
         "name": "7. Mādhava Cosine Series (Versed Sine / Śara)",
         "type": "Dynamic",
         "author": "Mādhava (c. 1340-1425), Yuktidīpikā 2.442",
-        "sanskrit": "निहत्य चापवर्गेण रूपं तत्तत्फलानि च । हरेद्विमूलयुग्वगैस्त्रिज्यावर्गाहतैः क्रमात् ॥\nकिन्तु व्यासदलेनैव द्विघ्नेनाद्यं विभज्यताम् । फलान्यधोऽधः क्रमशो न्यस्योपर्युपरि त्यजेत् ॥",
+        "sanskrit": "निहत्य चापवर्गेण रूपं तत्तत्फलानि च ।\n हरेद्विमूलयुग्वगैस्त्रिज्यावर्गाहतैः क्रमात् ॥\nकिन्तु व्यासदलेनैव द्विघ्नेनाद्यं विभज्यताम् ।\n फलान्यधोऽधः क्रमशो न्यस्योपर्युपरि त्यजेत् ॥",
         "summary": "Power series expansion for the Versed Sine (Śara), yielding the Cosine series through alternating even factorials.",
         "meaning": "• rūpam: The unit radius (instead of the arc).\n• haredvimūlayugvargaiḥ: Divide by squares of even numbers diminished by their roots.\n• vyāsadalenaiva dvighnena: By the radius doubled.\n• ādhyam vibhajyatām: The first term is to be divided.\n• śarāptyai: For obtaining the versed sine (1 - cos θ).",
         "input_guideline": "Enter positive angle parameter to compute Mādhava's cosine expansion.",
@@ -296,7 +296,7 @@ def compute_approximation(req: ComputeRequest):
             {"step": 1, "theory": "Compute equivalent trigonometric sine difference via standard FPU.", "math": f"Step {steps_count} angle"},
             {"step": 2, "theory": "Return hardware computed value.", "math": f"Val = {round(modern_val, 4)}"}
         ]
-        start_g = ancient_val * 0.7
+        start_g = ancient_val * 0.75
         anc_curve = [round(start_g + (ancient_val - start_g) * (i / 4), 4) for i in range(5)]
         mod_curve = [round(modern_val, 4)] * 5
 
@@ -469,7 +469,10 @@ def compute_approximation(req: ComputeRequest):
         mod_curve = [round(modern_val, 6)] * 5
 
     abs_err = abs(ancient_val - modern_val)
-    accuracy = max(0.0, 100.0 - (abs_err / modern_val * 100.0))
+    # Bounded accuracy formula ensuring accuracy is always strictly out of 100% (0% to 100%)
+    ref_val = abs(modern_val) if modern_val != 0 else 1.0
+    accuracy = 100.0 / (1.0 + (abs_err / ref_val))
+    accuracy = max(0.0, min(100.0, accuracy))
 
     return {
         "method_id": method,
