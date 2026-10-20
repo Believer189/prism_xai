@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import math
 
-app = FastAPI(title="PRISM Engine API", version="7.4")
+app = FastAPI(title="PRISM Engine API", version="8.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -170,7 +170,7 @@ SUTRAS_DB = {
         "summary": "Using the Bhūta-saṅkhyā word-numeral system to encode an 11-decimal place precision value for pi (3.14159265359).",
         "meaning": "• vibudha-netra-gaja-ahi-hutāśana-triguṇa-veda-bha-vāraṇa-bāhavaḥ: Word numerals encoding 2,827,433,388,233 (read right-to-left).\n• navanikharvamite: Measuring 9 nikharvas (9 * 10¹¹).\n• vṛtivistare: For the diameter of a circle.\n• paridhimānamidam jagadurbudhāḥ: This circumference measure the wise have declared.",
         "input_guideline": "Fixed historical constant. Displays Mādhava's 11-decimal precision expansion.",
-        "formula": "π ≈ 2827433388233 / 90000000000 = 3.14159265359"
+        "formula": "π ≈ 2827433388233 / 900000000000 = 3.14159265359"
     }
 }
 
@@ -201,7 +201,7 @@ def compute_approximation(req: ComputeRequest):
     if method == "brahmagupta_interpolation" and not (0 <= N <= 1):
         raise HTTPException(status_code=400, detail=f"Validation error: Residual interval fraction must be between 0 and 1.")
 
-    # Calculations & Dynamic Graph Curves responding to N
+    # Calculations & Authentic Algorithmic Simulations
     if method == "bakhshali_sqrt":
         val = N
         A = float(int(val ** 0.5)) if val > 0 else 0.0
@@ -224,19 +224,54 @@ def compute_approximation(req: ComputeRequest):
         mod_curve = [round(modern_val, 6)] * 5
 
     elif method == "aryabhata_sqrt":
-        val = N
-        ancient_val = math.sqrt(val)
+        # Authentic Aryabhata Vargamula digit-pair simulation loop
+        val = int(N)
         modern_val = math.sqrt(val)
-        steps_ancient = [
-            {"step": 1, "theory": "Group digits of N in pairs from right to left.", "math": f"Grouping pairs for N = {val}"},
-            {"step": 2, "theory": "Extract largest square from first group and find running root digit.", "math": "Root digit extraction step"},
-            {"step": 3, "theory": "Repeatedly divide non-square place by twice running root for next quotient.", "math": f"Exact Root = {round(ancient_val, 6)}"}
-        ]
+        
+        # Simulate digit-pair extraction steps
+        curr_root = 0
+        rem = 0
+        steps_ancient = []
+        
+        # Approximate grouping simulation
+        str_val = str(val)
+        if len(str_val) % 2 != 0:
+            str_val = "0" + str_val
+        
+        pairs = [str_val[i:i+2] for i in range(0, len(str_val), 2)]
+        root_digits = []
+        
+        for idx, p in enumerate(pairs):
+            rem = rem * 100 + int(p)
+            # Find largest digit d such that (20 * curr_root + d) * d <= rem
+            best_d = 0
+            for d in range(10):
+                if (20 * curr_root + d) * d <= rem:
+                    best_d = d
+                else:
+                    break
+            sub_val = (20 * curr_root + best_d) * best_d
+            rem -= sub_val
+            curr_root = curr_root * 10 + best_d
+            root_digits.append(best_d)
+            steps_ancient.append({
+                "step": idx + 1,
+                "theory": f"Group pair '{p}': subtract largest square product from accumulated remainder.",
+                "math": f"Digit quotient = {best_d}, Running root = {curr_root}, Remainder = {rem}"
+            })
+            
+        if not steps_ancient:
+            steps_ancient.append({"step": 1, "theory": "Execute Aryabhata digit-pair extraction loop.", "math": f"N = {val}"})
+
+        ancient_val = float(curr_root)
+        if rem > 0: # Add fractional refinement matching Aryabhata's method
+            ancient_val += round(rem / (2.0 * curr_root), 4)
+
         steps_modern = [
             {"step": 1, "theory": "Load input into FPU register.", "math": f"N = {val}"},
-            {"step": 2, "theory": "Execute FPU square root.", "math": f"sqrt({val}) = {round(modern_val, 8)}"}
+            {"step": 2, "theory": "Execute hardware square root instruction.", "math": f"sqrt({val}) = {round(modern_val, 8)}"}
         ]
-        start_g = ancient_val * 0.5
+        start_g = max(1.0, ancient_val * 0.5)
         anc_curve = [round(start_g + (ancient_val - start_g) * (i / 4), 6) for i in range(5)]
         mod_curve = [round(modern_val, 6)] * 5
 
@@ -278,23 +313,31 @@ def compute_approximation(req: ComputeRequest):
         mod_curve = [round(modern_val, 4)] * 5
 
     elif method == "aryabhata_sinetable":
+        # Authentic Aryabhata second-order sine table difference simulation (Gitikapada V.12)
         steps_count = int(N)
-        d_val = 225.0
-        s_val = 225.0
-        curr_d = d_val
-        for _ in range(min(steps_count, 24)):
-            curr_d = curr_d - (s_val / 225.0)
-            s_val += curr_d
-        ancient_val = curr_d
-        modern_val = 225.0 * math.cos(math.radians(steps_count * 3.75))
+        R = 3438.0 # Standard Indian astronomical radius units
+        s_vals = [0.0]
+        curr_s = 0.0
+        # First difference delta_s1 = 225 minutes (approx 3.75 deg)
+        delta = 225.0
+        for i in range(1, 25):
+            curr_s += delta
+            s_vals.append(curr_s)
+            # Aryabhata second difference recurrence: delta_next = delta - (delta / R)
+            delta = delta - (delta / R)
+
+        target_idx = min(steps_count, 24)
+        ancient_val = s_vals[target_idx] / R # Normalized sine value
+        modern_val = math.sin(math.radians(target_idx * 3.75))
+        
         steps_ancient = [
-            {"step": 1, "theory": "Initialize initial first difference d1 = 225 minutes.", "math": "d1 = 225"},
-            {"step": 2, "theory": "Iterate second-order recurrence subtracting cumulative sum / 225.", "math": "d_new = d_curr - (s_sum / 225)"},
-            {"step": 3, "theory": "Yield computed tabular sine difference value.", "math": f"Diff = {round(ancient_val, 4)}"}
+            {"step": 1, "theory": "Initialize standard circle radius R = 3438 minutes and first difference delta = 225.", "math": "R = 3438, δ₁ = 225"},
+            {"step": 2, "theory": "Apply Aryabhata's second-order difference recurrence relation: δₙ₊₁ = δₙ - (δₙ / R).", "math": f"Step {target_idx} cumulative half-chord"},
+            {"step": 3, "theory": "Normalize chord length by radius R to yield sine value.", "math": f"sin(θ) ≈ {round(ancient_val, 6)}"}
         ]
         steps_modern = [
-            {"step": 1, "theory": "Compute equivalent trigonometric sine difference via standard FPU.", "math": f"Step {steps_count} angle"},
-            {"step": 2, "theory": "Return hardware computed value.", "math": f"Val = {round(modern_val, 4)}"}
+            {"step": 1, "theory": "Compute target angle corresponding to table steps (3.75° per step).", "math": f"θ = {target_idx * 3.75}°"},
+            {"step": 2, "theory": "Evaluate standard floating-point sine function.", "math": f"sin(θ) = {round(modern_val, 8)}"}
         ]
         start_g = ancient_val * 0.75
         anc_curve = [round(start_g + (ancient_val - start_g) * (i / 4), 4) for i in range(5)]
@@ -453,12 +496,12 @@ def compute_approximation(req: ComputeRequest):
         anc_curve = [3.1, 3.12, 3.13, 3.14, ancient_val]
         mod_curve = [round(modern_val, 6)] * 5
 
-    else:  # madhava_11digit_pi
-        ancient_val = 2827433388233.0 / 90000000000.0
+    else:  # madhava_11digit_pi (Corrected 9 nikharvas denominator = 900,000,000,000)
+        ancient_val = 2827433388233.0 / 900000000000.0
         modern_val = math.pi
         steps_ancient = [
-            {"step": 1, "theory": "Encode Sanskrit word-numerals (Bhūta-saṅkhyā) right-to-left.", "math": "2,827,433,388,233"},
-            {"step": 2, "theory": "Divide by 9 nikharvas (9 * 10¹¹).", "math": "2827433388233 / 90000000000"},
+            {"step": 1, "theory": "Encode Sanskrit word-numerals (Bhūta-saṅkhyā) right-to-left: 2,827,433,388,233.", "math": "2,827,433,388,233"},
+            {"step": 2, "theory": "Divide by 9 nikharvas (9 * 10¹¹ = 900,000,000,000).", "math": "2827433388233 / 900000000000"},
             {"step": 3, "theory": "Yield 11-decimal precision approximation.", "math": f"π ≈ {ancient_val}"}
         ]
         steps_modern = [
@@ -469,7 +512,6 @@ def compute_approximation(req: ComputeRequest):
         mod_curve = [round(modern_val, 6)] * 5
 
     abs_err = abs(ancient_val - modern_val)
-    # Bounded accuracy formula ensuring accuracy is always strictly out of 100% (0% to 100%)
     ref_val = abs(modern_val) if modern_val != 0 else 1.0
     accuracy = 100.0 / (1.0 + (abs_err / ref_val))
     accuracy = max(0.0, min(100.0, accuracy))
@@ -485,7 +527,7 @@ def compute_approximation(req: ComputeRequest):
         "steps_modern": steps_modern,
         "xai_rationale": {
             "input_rationale": f"Method '{method}' processed with parameter N = {N}.",
-            "ancient_logic": "The selected classical sutra employs recursive rational expansions and geometric error bounding.",
+            "ancient_logic": "The selected classical sutra employs recursive rational expansions and algorithmic digit-extraction error bounding.",
             "convergence_analysis": f"Absolute deviation between ancient computation and IEEE 754 hardware standard is < {max(abs_err, 1e-7):.2e}."
         },
         "graph_data": {
