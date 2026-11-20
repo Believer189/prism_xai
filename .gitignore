@@ -10,3 +10,5 @@ frontend/.vite/
 
 # Environment files
 .env
+# Local backup archives
+*.zip

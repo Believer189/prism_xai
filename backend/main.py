@@ -1,15 +1,20 @@
-# backend/main.py
+# File Location: backend/main.py
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from decimal import Decimal, ROUND_HALF_UP
 import math
 
-app = FastAPI(title="PRISM Engine API", version="8.0")
+DECIMAL_PLACES = 6
+QUADRANT_LIMIT_DEG = 90.0
+SINE_RADIUS_ARCMIN = 3438.0
+
+app = FastAPI(title="PRISM Engine API", version="15.0")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -19,160 +24,916 @@ class ComputeRequest(BaseModel):
     input_value: float = 0.0
 
 SUTRAS_DB = {
-    # --- PART A: Dynamic Techniques ---
-    "bakhshali_sqrt": {
-        "name": "1. Bakhshālī Square Root Formula",
-        "type": "Dynamic",
-        "author": "Bakhshālī Manuscript (c. 3rd-7th Century CE)",
-        "sanskrit": "अकृते श्लिष्टकृत्यूनाच्छेषच्छेदो द्विष‌गुणः ।\nतद्वर्गदलसंश्लिष्टहृतिशुद्धिकृतिक्षयः ॥",
-        "summary": "For a non-square N = A² + b, find initial root q = A + b/(2A), then refine iteratively via second-order correction: √N ≈ q - [(b/2A)² / (2q)].",
-        "meaning": "• akṛte: In the case of a number whose square root is to be found.\n• śliṣṭa-kṛti: The approximate root (root of the nearest square).\n• ūnāt: By division (by the approximate root).\n• śeṣa: The ratio remainder/divisor.\n• cchedo: Its denominator.\n• dviṣaṅguṇaḥ: Multiplied by two.\n• tad-varga: The square of that.\n• dala: Half.\n• saṁśliṣṭa: The composite fraction (first approximation).\n• hṛti: Division (by that composite fraction).\n• śuddhi: Subtraction.\n• kṛti-kṣayaḥ: The refined root.",
-        "input_guideline": "Enter any positive number N to compute its precise square root using the Bakhshālī iterative refinement method.",
-        "formula": "q = A + (b / 2A),  √N ≈ q - (b / 2A)² / (2q)"
-    },
     "aryabhata_sqrt": {
-        "name": "2. Aryabhața's Square Root Algorithm (Vargamūla)",
+        "name": "1. Āryabhaṭa's Square Root Algorithm (Vargamūla)",
         "type": "Dynamic",
-        "author": "Āryabhaṭīya (499 CE), Ganitapāda, Verse 4",
-        "sanskrit": "भागं हरेदवर्गान्नित्यं द्विगुणेन वर्गमूलेन ।\nवर्गाद्वर्गे शुद्धे लब्धं स्थानान्तरे मूलम् ॥",
-        "summary": "Digit-pair long-hand method for √N. Group digits in pairs, extract largest square from first group, and repeatedly divide non-square place by twice running root.",
-        "meaning": "• bhāgam haret: One should perform division.\n• avargāt: Taking from the non-square place.\n• nityam: Always.\n• dviguṇena: By twice.\n• vargamūlena: The square root obtained so far.\n• vargāt: From the square place.\n• varge śuddhe: When the square is subtracted.\n• labdham: The quotient obtained.\n• sthānāntare: At the next place.\n• mūlam: Is the root digit.",
-        "input_guideline": "Enter any multi-digit positive integer N to execute Aryabhața's digit-pair square root extraction.",
-        "formula": "Long-division digit grouping method for square roots."
+        "one_liner": "Computes the exact or multi-decimal square root (√N) of any positive number using alternating odd (varga) and even (avarga) place-value digit extraction.",
+        "default_input": "55225",
+        "author": "Āryabhaṭīya (499 CE), Gaṇitapāda, Verse 4",
+        "source_citation": "Primary Book Source: 'Āryabhaṭīya of Āryabhaṭa', Edited & Translated by K. S. Shukla and K. V. Sarma (Indian National Science Academy, New Delhi, 1976), Gaṇitapāda, Verse 4.",
+        "modern_citation": "Modern Benchmark Source: 'Introductory Methods of Numerical Analysis' by S. S. Sastry (5th Ed., PHI Learning) & IEEE 754-2019 Floating-Point Standard (Newton-Raphson Quadratic Convergence).",
+        "sanskrit": "भागं हरेदवर्गान्नित्यं द्विगुणेन वर्गमूलेन ।\nवर्गाद्वर्गे शुद्धे लब्धं स्थानान्तरे मूलम् ॥ ४ ॥",
+        "transliteration": "bhāgaṃ haredavargānnityaṃ dviguṇena vargamūlena |\nvargādvarge śuddhe labdhaṃ sthānāntare mūlam || 4 ||",
+        "summary": "(Having subtracted the greatest possible square from the last odd place and then having written down the square root of the number subtracted in the line of the square root) always divide the even place (standing on the right) by twice the square root. Then, having subtracted the square (of the quotient) from the odd place (standing on the right), set down the quotient at the next place (i.e., on the right of the number already written in the line of the square root). This is the square root. (Repeat the process if there are still digits on the right).",
+        "meaning": "• bhāgam haret avargāt nityam: Always divide the even (non-square / avarga) place standing on the right.\n• dviguṇena vargamūlena: By twice the square root obtained so far.\n• vargāt varge śuddhe: Having subtracted the square (of the quotient) from the odd (square / varga) place standing on the right.\n• labdham sthānāntare mūlam: The quotient set down at the next place in the line of the square root gives the root.\n• Footnote 1 (Shukla & Sarma, Gaṇitapāda 4): In dividing, the quotient should be taken as great as will allow the subtraction of its square from the next odd place.",
+        "input_guideline": "Dynamic Sutra: Enter any positive number N (e.g., textbook example 55225 for exact root 235, or any non-square like 10 or 125 for decimal pair continuation).",
+        "formula": "Place Marking: ... o e o e o  |  Step A (Even 'e'): Divide by 2×Root  |  Step B (Odd 'o'): Subtract Quotient²"
     },
     "aryabhata_cuberoot": {
-        "name": "3. Aryabhața's Cube Root Algorithm (Ghanamūla)",
+        "name": "2. Āryabhaṭa's Cube Root Algorithm (Ghanamūla)",
         "type": "Dynamic",
-        "author": "Āryabhaṭīya (499 CE), Ganitapāda, Verse 5",
-        "sanskrit": "अघनाद्भजेद्दवितीयात्त्रिगुणेन घनस्य मूलवर्गेण ।\nवर्गस्त्रिपूर्वगुणितः शोध्यः प्रथमाद्धनश्च घनात् ॥",
-        "summary": "Group digits in triplets based on (a+b)³ expansion. Divide non-cube place by 3a² to find next digit b, subtract 3a·b² and b³.",
-        "meaning": "• aghanāt: From the non-cube place.\n• bhajet: One should divide.\n• dvitīyāt: From the second place.\n• triguṇena: By three times.\n• ghanasya mūlavargeṇa: The square of the cube root.\n• vargaḥ: The square of the new quotient.\n• tripūrvaguṇitaḥ: Multiplied by three times the previous root.\n• śodhyaḥ: Should be subtracted.\n• prathamāt: From the first non-cube place.\n• ghanaśca: And the cube of the quotient.\n• ghanāt: From the cube place.",
-        "input_guideline": "Enter a positive integer N to compute its cube root using Aryabhața's cubic expansion algorithm.",
-        "formula": "(a + b)³ = a³ + 3a²b + 3ab² + b³ expansion loop."
-    },
-    "bhaskara1_sine": {
-        "name": "4. Bhāskara I's Rational Sine Approximation",
-        "type": "Dynamic",
-        "author": "Mahābhāskarīya (c. 629 CE), Chapter 7",
-        "sanskrit": "मख्यादिरहितं कर्म वक्ष्यते तत्समासतः ।\n चक्रार्धांशकसमूहाद्विशोध्या ये भुजांशकाः ॥\nतच्छेषगुणिता द्विष्ठाः शोध्याः खाभ्रेषुखाब्धितः ।\n चतुर्थांशेन शेषस्य द्विष्ठमन्त्यफलं हतम् ॥",
-        "summary": "Calculates the sine of an angle without trigonometric tables using rational approximation accurate to within 1.8% from 0° to 180°.",
-        "meaning": "• makhyādirahitam: Free of sine-difference tables beginning with 'makhi'.\n• karma vakṣyate: The procedure will be stated.\n• cakrārdhāmśakasamūhāt: From 180 degrees (half a circle).\n• viśodhyāḥ: Are to be subtracted.\n• ye bhujāmśakāḥ: The degrees of the arc (angle x).\n• taccheṣaguṇitā: Multiplied by that remainder (180 - x).\n• dvisthāḥ: Placed in two positions.\n• śodhyāḥ khābhreṣukhābdhitaḥ: Subtracted from 40,500.\n• caturthāmśena śeṣasya: By one-fourth of the remainder.",
-        "input_guideline": "Enter an angle between 0 and 180 degrees to compute rational sine approximation.",
-        "formula": "sin(x) ≈ 4x(180 - x) / [40500 - x(180 - x)]"
+        "one_liner": "Computes the exact or multi-decimal cube root (∛N) of any positive number by partitioning digits into triplets (c, n', n) and inverting the binomial cube expansion.",
+        "default_input": "1771561",
+        "author": "Āryabhaṭīya (499 CE), Gaṇitapāda, Verse 5",
+        "source_citation": "Primary Book Source: 'Āryabhaṭīya of Āryabhaṭa', Edited & Translated by K. S. Shukla and K. V. Sarma (Indian National Science Academy, New Delhi, 1976), Gaṇitapāda, Verse 5.",
+        "modern_citation": "Modern Benchmark Source: 'Introductory Methods of Numerical Analysis' by S. S. Sastry (5th Ed., PHI Learning) & IEEE 754-2019 Floating-Point Standard (Newton-Raphson Cubic Convergence).",
+        "sanskrit": "अघनाद्भजेद् द्वितीयात् त्रिगुणेन घनस्य मूलवर्गेण ।\nवर्गस्त्रिपूर्वगुणितः शोध्यः प्रथमाद् घनश्च घनात् ॥ ५ ॥",
+        "transliteration": "aghanādbhaje dvitīyāt triguṇena ghanasya mūlavargeṇa |\nvargastripūrvaguṇitaḥ śodhyaḥ prathamād ghanaśca ghanāt || 5 ||",
+        "summary": "(Having subtracted the greatest possible cube from the last cube place and then having written down the cube root of the number subtracted in the line of the cube root), divide the second non-cube place (standing on the right of the last cube place) by thrice the square of the cube root (already obtained); (then) subtract from the first non-cube place (standing on the right of the second non-cube place) the square of the quotient multiplied by thrice the previous (cube root); and (then subtract) the cube (of the quotient) from the cube place (standing on the right of the first non-cube place) (and write down the quotient on the right of the previous cube root in the line of the cube root, and treat this as the new cube root. Repeat the process if there are still digits on the right).",
+        "meaning": "• aghanāt bhajet dvitīyāt: Divide the second non-cube place (n') standing on the right of the cube place.\n• triguṇena ghanasya mūlavargeṇa: By thrice the square of the cube root obtained so far (3a²).\n• vargaḥ tripūrvaguṇitaḥ śodhyaḥ prathamāt: Subtract the square of the quotient multiplied by thrice the previous root (3ab²) from the first non-cube place (n).\n• ghanaśca ghanāt: And subtract the cube of the quotient (b³) from the cube place (c).",
+        "input_guideline": "Dynamic Sutra: Enter any positive number N (e.g., textbook example 1771561 for exact root 121, or any number like 10 or 500 for multi-step decimal triplet extraction).",
+        "formula": "Triplet Marking: ... c n' n c  |  Step A (n'): Divide by 3a²  |  Step B (n): Subtract 3ab²  |  Step C (c): Subtract b³"
     },
     "aryabhata_sinetable": {
-        "name": "5. Aryabhața's Sine-Table Method (Jyā)",
+        "name": "3. Āryabhaṭa's Sine-Table Method (Jyā)",
         "type": "Dynamic",
-        "author": "Āryabhaṭīya (499 CE), Gītikāpāda V.12",
-        "sanskrit": "प्रथमाच्चापज्यार्धाद्यैरूनं खण्डितं द्वितीयार्धम् ।\nतत्प्रथमज्यार्थांशैस्तैस्तैरूनानि शेषाणि ॥",
-        "summary": "Discrete second-order recurrence relation to build sine tables at intervals of 3°45' using prior half-chords.",
-        "meaning": "• prathamāt: From the first.\n• cāpajyārdhāt: Half-chord of the arc (Sine).\n• yaiḥ ūnam: Diminished by which amount.\n• khaṇḍitam dvitīyārdham: The second sine difference.\n• tatprathamajyārdhāmśaiḥ: By the quotients of the first half-chord.\n• taistairūnāni: Successively diminished by those.\n• śeṣāṇi: The remaining differences.",
-        "input_guideline": "Enter positive number of table steps (1 to 24) to generate Aryabhața's sine table sequence.",
-        "formula": "dₙ₊₁ = dₙ - (sₙ / 225)"
-    },
-    "madhava_sine": {
-        "name": "6. Mādhava Sine Series",
-        "type": "Dynamic",
-        "author": "Mādhava (c. 1340-1425), Yuktidīpikā 2.440",
-        "sanskrit": "निहत्य चापवर्गेण चापं तत्तत्फलानि च ।\n हरेत्समूलयुग्वगैस्त्रिज्यावर्गाहतैः क्रमात् ॥\nचापं फलानि चाधोऽधो न्यस्योपर्युपरि त्यजेत् ।\n जीवाप्त्यै सङ्ग्रहोऽस्यैव विद्वानित्यादिना कृतः ॥",
-        "summary": "Infinite power series expansion for the sine function using arc powers divided by factorial/even integer products with alternating signs.",
-        "meaning": "• nihatya: Having multiplied.\n• cāpavargeṇa: By the square of the arc (s²).\n• cāpam tattatphalāni ca: The arc and successive results.\n• haret: One should divide.\n• samūlayugvargaiḥ: By squares of even numbers increased by their roots.\n• trijyāvargāhataiḥ: Multiplied by the square of the radius (r²).\n• nyasyoparyupari tyajet: Placed below one another, subtract each from the one above.\n• jīvāptyai: For obtaining the Sine.",
-        "input_guideline": "Enter positive angle parameter in degrees/radians to compute Mādhava's sine series.",
-        "formula": "sin(θ) = θ - θ³/3! + θ⁵/5! - ..."
-    },
-    "madhava_cosine": {
-        "name": "7. Mādhava Cosine Series (Versed Sine / Śara)",
-        "type": "Dynamic",
-        "author": "Mādhava (c. 1340-1425), Yuktidīpikā 2.442",
-        "sanskrit": "निहत्य चापवर्गेण रूपं तत्तत्फलानि च ।\n हरेद्विमूलयुग्वगैस्त्रिज्यावर्गाहतैः क्रमात् ॥\nकिन्तु व्यासदलेनैव द्विघ्नेनाद्यं विभज्यताम् ।\n फलान्यधोऽधः क्रमशो न्यस्योपर्युपरि त्यजेत् ॥",
-        "summary": "Power series expansion for the Versed Sine (Śara), yielding the Cosine series through alternating even factorials.",
-        "meaning": "• rūpam: The unit radius (instead of the arc).\n• haredvimūlayugvargaiḥ: Divide by squares of even numbers diminished by their roots.\n• vyāsadalenaiva dvighnena: By the radius doubled.\n• ādhyam vibhajyatām: The first term is to be divided.\n• śarāptyai: For obtaining the versed sine (1 - cos θ).",
-        "input_guideline": "Enter positive angle parameter to compute Mādhava's cosine expansion.",
-        "formula": "cos(θ) = 1 - θ²/2! + θ⁴/4! - ..."
-    },
-    "madhava_pi": {
-        "name": "8. Mādhava-Leibniz π Series",
-        "type": "Dynamic",
-        "author": "Mādhava (c. 1340-1425), Karanapaddhati 6.1",
-        "sanskrit": "व्यासाच्चतुर्णात्बहुशः पृथक्स्थात् त्रिपञ्चसप्ताद्ययुगाहृतानि ।\nव्यासे चतुर्भे क्रमशस्त्वृणं स्वं कुर्यात्तदा स्यात्परिधिः सुसूक्ष्मः ॥",
-        "summary": "The infinite series for π using alternating odd denominators multiplied by four.",
-        "meaning": "• vyāsāccaturghnāt: From the diameter multiplied by four (4d).\n• tripañcasaptādyayugāhṛtāni: Divided by odd numbers starting with 3, 5, 7.\n• kramaśastvṛṇam svam: Alternating negative and positive.\n• kuryāttadā syātparidhiḥ: Doing this yields the circumference.\n• susūkṣmaḥ: Very accurate.",
-        "input_guideline": "Enter positive number of terms (greater than 0) to compute π via Mādhava's infinite series.",
-        "formula": "π = 4 * (1 - 1/3 + 1/5 - 1/7 + ...)"
-    },
-    "nilakantha_pi": {
-        "name": "9. Nīlakantha's Accelerated π Series",
-        "type": "Dynamic",
-        "author": "Tantrasangraha / Karanapaddhati 6.4",
-        "sanskrit": "व्यासाद् वारिधिनिहतात् पृथगाप्तं त्र्याद्ययुग्विमूलघनैः ।\nत्रिगुणव्यासे स्वमृणं क्रमशः कृत्वापि परिधिरानेयः ॥",
-        "summary": "A rapidly converging infinite series using products of triplets starting from 3 and adding/subtracting alternating fractions.",
-        "meaning": "• vyāsād vāridhinihatāt: From the diameter multiplied by four (vāridhi = 4).\n• pṛthagāptam: The quotients obtained separately.\n• tryādyayugvimūlaghanaiḥ: By odd numbers starting with 3, using their cubes diminished by roots.\n• trigunavyāse: To the diameter multiplied by three (3d).\n• svamṛṇaṁ kramaśaḥ: Add and subtract alternately in sequence.",
-        "input_guideline": "Enter positive number of triplets (greater than 0) to compute Nīlakantha's π expansion.",
-        "formula": "π = 3 + 4/(2*3*4) - 4/(4*5*6) + ..."
-    },
-    "brahmagupta_interpolation": {
-        "name": "10. Brahmagupta's Second-Order Interpolation",
-        "type": "Dynamic",
-        "author": "Khandakhādyaka (665 CE), Uttarakhandakhādyaka 9.8",
-        "sanskrit": "गतभोग्यखण्डकान्तरदलविकलागुणितात् शतैर्नवभिराप्तम् ।\nतद्युतिदलेऽधिकोनं भोग्यशरादूनमधिकं वा ॥",
-        "summary": "The earliest second-order polynomial interpolation formula (Newton-Stirling) to compute intermediate table values.",
-        "meaning": "• gatabhogyakhaṇḍakāntaradala: Half the difference between past and future tabular differences.\n• vikalāgunitāt: Multiplied by residual minutes (vikalā).\n• śatairnavabhirāptam: Divided by 900 minutes.\n• tadyutidale: Added or subtracted from their half-sum.\n• bhogyaśarāt: From the tabular difference.",
-        "input_guideline": "Enter residual interval fraction between 0 and 1 for interpolation computation.",
-        "formula": "f(a + xh) ≈ f(a) + x(Δf₁ + Δf₂)/2 + x²(Δf₂ - Δf₁)/2"
-    },
-
-    # --- PART B: Static Techniques (Constants & Fixed Values) ---
-    "baudhayan_root2": {
-        "name": "11. Baudhāyana's √2 Approximation",
-        "type": "Static",
-        "author": "Baudhāyana Śulbasūtra 1.61 (c. 800-500 BCE)",
-        "sanskrit": "प्रमाणं तृतीयेन वर्धयेत्तच्च चतुर्थेनात्मचतुस्त्रिंशोनेन ।\nसविशेषः ॥",
-        "summary": "Rational fraction approximation for the diagonal of a unit square resulting in 577/408 (~1.4142157).",
-        "meaning": "• pramāṇam: The nominal unit measure.\n• tṛtīyena vardhayet: One should increase by its third part.\n• tacca caturthena: And that by its fourth part.\n• ātmacatustrimśonena: Decreased by its own thirty-fourth part.\n• saviśeṣaḥ: This is the precise approximate value.",
-        "input_guideline": "Fixed historical constant. No input required; displays exact rational derivation steps.",
-        "formula": "√2 ≈ 1 + 1/3 + 1/(3*4) - 1/(3*4*34) = 577/408"
+        "one_liner": "Generates trigonometric half-chord sines (Rsin θ and sin θ) for any quadrant angle θ ∈ (0°, 90°] using Āryabhaṭa's second-order finite-difference recurrence relation.",
+        "default_input": "45",
+        "author": "Āryabhaṭīya (499 CE), Gaṇitapāda V. 12 & Gītikāpāda V. 12",
+        "source_citation": "Primary Book Source: 'Āryabhaṭīya of Āryabhaṭa', Edited & Translated by K. S. Shukla and K. V. Sarma (Indian National Science Academy, New Delhi, 1976), Gaṇitapāda Verse 12 & Gītikāpāda Verse 12.",
+        "modern_citation": "Modern Benchmark Source: 'Introductory Methods of Numerical Analysis' by S. S. Sastry & IEEE 754-2019 Floating-Point Standard (Maclaurin Power Series Expansion & CORDIC).",
+        "sanskrit": "प्रथमाच्चापज्यार्धाद्यैरूनं खण्डितं द्वितीयार्धम् ।\nतत्प्रथमज्यार्धांशैस्तैस्तैरूनानि शेषाणि ॥ १२ ॥\n(गीतिकापाद १२: मखि भखि फखि धखि णखि ञखि ङखि हस्झ स्ककि किष्ग श्घकि किघ्व ।\nघ्लकि किग्र हक्य धकि किच स्ग झश ङ्व क्ल प्त फ छ कलार्धज्याः ॥)",
+        "transliteration": "prathamāccāpajyārdhādyairūnaṃ khaṇḍitaṃ dvitīyārdham |\ntatprathamajyārdhāṃśaistaistairūnāni śeṣāṇi || 12 ||\n(Gītikāpāda 12: makhi bhakhi phakhi dhakhi ṇakhi ñakhi ṅakhi hasjha skaki kiṣga śghaki kighva |\nghlaki kigra hakya dhaki kica sga jhaśa ṅva kla pta pha cha kalārdhajyāḥ ||)",
+        "summary": "Gaṇitapāda V. 12: The first Rsine divided by itself and then diminished by the quotient gives the second Rsine-difference. The same first Rsine diminished by the quotients obtained by dividing each of the preceding Rsines by the first Rsine gives the remaining Rsine-differences.\nGītikāpāda V. 12: Lists the 24 Rsine-differences (ardhajyā-khaṇḍas) in arcminutes (kalā) at intervals of 3°45' (225') for radius R = 3438': 225, 224, 222, 219, 215, 210, 205, 199, 191, 183, 174, 164, 154, 143, 131, 119, 106, 93, 79, 65, 51, 37, 22, 7.",
+        "meaning": "• prathamāt cāpajyārdhāt: From the first Rsine (R₁ = Rsin 3°45' = 225').\n• yaiḥ ūnam khaṇḍitam dvitīyārdham: Divided by itself (R₁/R₁ = 1) and diminished by that quotient gives the second Rsine-difference (δ₂ = 225 - 1 = 224').\n• tat-prathama-jyārdha-aṃśaiḥ: By the quotients obtained on dividing each of the preceding Rsines by the first Rsine (225').\n• taiḥ taiḥ ūnāni śeṣāṇi: Successively diminished by those quotients yields the remaining Rsine-differences: δ_{n+1} = R₁ - (R₁ + R₂ + ... + R_n)/R₁  <=>  δ_{n+1} = δ_n - R_n / R₁.",
+        "input_guideline": "Dynamic Sutra: Enter an angle θ in degrees between 0° (exclusive) and 90° (inclusive), e.g., 15°, 30°, 45°, 60°, or 90°.",
+        "formula": "R = 3438', h = 225' (3°45')  |  δ₂ = R₁ - R₁/R₁  |  δ_{n+1} = R₁ - (R₁ + ... + R_n)/R₁  |  sin(θ) = Rsin(θ) / 3438"
     },
     "aryabhata_pi": {
-        "name": "12. Āryabhața's π (62832 / 20000)",
+        "name": "4. Āryabhaṭa's Circumference-Diameter Ratio (π ≈ 3.1416)",
         "type": "Static",
-        "author": "Āryabhaṭīya (499 CE), Ganitapāda, Verse 10",
-        "sanskrit": "चतुरधिकं शतमष्टगुणं द्वाषष्टिस्तथा सहस्राणाम् ।\nअयुतद्वयविष्कम्भस्यासन्नो वृत्तपरिणाहः ॥",
-        "summary": "Āryabhața's explicit āsanna (approximate) ratio for the circumference of a circle: 62832 / 20000 = 3.1416.",
-        "meaning": "• caturadhikam śatam: One hundred plus four (104).\n• aṣṭaguṇam: Multiplied by eight (832).\n• dvāśastistathā sahasrānām: And sixty-two thousand (62,832).\n• ayutadvaya: Two ayutas (20,000).\n• viṣkambhasya: Of the diameter.\n• āsanno vṛttapariṇāhaḥ: Is the approximate circumference of the circle.",
-        "input_guideline": "Fixed historical constant. Displays Āryabhața's āsanna (approximate) ratio.",
-        "formula": "π ≈ 62832 / 20000 = 3.1416"
-    },
-    "brahmagupta_pi_root10": {
-        "name": "13. Brahmagupta's π (√10)",
-        "type": "Static",
-        "author": "Brāhmasphutasiddhānta (628 CE), Gaṇitādhyāya 12.40",
-        "sanskrit": "व्यासव्यासार्धकृती परिधिफले व्यावहारिके त्रिगुणे ।\nतद्वर्गाभ्यां दशभिः सङ्गुणिताभ्यां पदे सूक्ष्मे ॥",
-        "summary": "Practical shorthand pi ≈ 3 and accurate fine computation pi ≈ √10 ≈ 3.1623.",
-        "meaning": "• vyāsavyāsārdhakṛtī: The diameter and square of the half-diameter (radius).\n• paridhiphale: Circumference and area respectively.\n• vyāvahārike triguṇe: For practical working values, multiply by three.\n• tadvargābhyām daśabhiḥ saṅguṇitābhyām: Taking those squares multiplied by ten.\n• pade sūkṣme: Their square roots are the accurate values.",
-        "input_guideline": "Fixed historical constant. Displays practical (3) vs fine (√10) values.",
-        "formula": "π ≈ √10 ≈ 3.1623"
+        "one_liner": "Establishes the fixed rational approximation of Pi (π ≈ 62,832 / 20,000 = 3.1416) by prescribing the circumference of a circle with a diameter of 20,000 units.",
+        "default_input": "0",
+        "author": "Āryabhaṭīya (499 CE), Gaṇitapāda, Verse 10",
+        "source_citation": "Primary Book Source: 'Āryabhaṭīya of Āryabhaṭa', Edited & Translated by K. S. Shukla and K. V. Sarma (Indian National Science Academy, New Delhi, 1976), Gaṇitapāda, Verse 10.",
+        "modern_citation": "Modern Benchmark Source: Machin's arctangent series (S. S. Sastry) & IEEE 754-2019 64-bit constant π.",
+        "sanskrit": "चतुरधिकं शतमष्टगुणं द्वाषष्टिस्तथा सहस्राणाम् ।\nअयुतद्वयविष्कम्भस्यासन्नो वृत्तपरिणाहः ॥ १० ॥",
+        "transliteration": "caturadhikaṃ śatamaṣṭaguṇaṃ dvāṣaṣṭistathā sahasrāṇām |\nayutadvayaviṣkambhasyāsanno vṛttapariṇāhaḥ || 10 ||",
+        "summary": "100 plus 4, multiplied by 8, and added to 62,000: this is the nearly approximate measure of the circumference of a circle whose diameter is 20,000.\nThis gives π = circumference / diameter = 62832 / 20000 = 3.1416. This value does not occur in any earlier work on mathematics, and forms an important contribution of Āryabhaṭa I. It is noteworthy that Āryabhaṭa I has called the above value approximate (āsanna).",
+        "meaning": "• caturadhikaṃ śatam: 100 plus 4 (= 104).\n• aṣṭaguṇam: Multiplied by 8 (104 × 8 = 832).\n• dvāṣaṣṭiḥ tathā sahasrāṇām: And sixty-two thousand added to it (832 + 62,000 = 62,832).\n• ayuta-dvaya-viṣkambhasya: Of a circle whose diameter (viṣkambha) is two ayutas (2 × 10,000 = 20,000).\n• āsannaḥ vṛtta-pariṇāhaḥ: Is the nearly approximate (āsanna) measure of the circumference (vṛtta-pariṇāha) -> π ≈ 62,832 / 20,000 = 3.1416.",
+        "input_guideline": "Static Sutra (Fixed Historical Constant): No user input is required. The verse directly encodes fixed canonical integers (Circumference = 62,832; Diameter = 20,000).",
+        "formula": "C = [(100 + 4) × 8] + 62,000 = 62,832  |  D = 2 × 10,000 = 20,000  |  π ≈ C / D = 62,832 / 20,000 = 3.1416"
     },
     "bhaskara2_pi": {
-        "name": "14. Bhāskara II's π (3927 / 1250)",
+        "name": "5. Bhāskara II's Circumference-Diameter Ratio (π ≈ 3927 / 1250 & 22 / 7)",
         "type": "Static",
-        "author": "Līlāvatī (1150 CE), Kṣetravyavahāra 201",
-        "sanskrit": "व्यासे भनन्दाग्निहते विभक्ते खबाणसूर्यैः परिधिः स सूक्ष्मः ।\nद्वाविंशतिघ्ने विहृतेऽथ शैलैः स्थूलोऽथ वा स्याव्यवहारयोग्यः ॥",
-        "summary": "Accurate ratio 3927 / 1250 (= 3.1416) and practical coarse ratio 22 / 7 (= 3.1428) for circle circumference.",
-        "meaning": "• vyāse: In the diameter.\n• bhanandāgnihate: Multiplied by 3927 (bha=27, nanda=9, agni=3).\n• vibhakte khabāṇasūryaiḥ: Divided by 1250 (kha=0, bāna=5, sūrya=12).\n• paridhiḥ sa sūkṣmaḥ: That is the accurate circumference.\n• dvāviṁśatighne vihṛte'tha śailaiḥ: Multiplied by 22 and divided by 7 (22/7).",
-        "input_guideline": "Fixed historical constant. Displays Bhāskara II's high-precision ratio (3927/1250).",
-        "formula": "π ≈ 3927 / 1250 = 3.1416"
-    },
-    "madhava_11digit_pi": {
-        "name": "15. Mādhava's 11-Digit π",
-        "type": "Static",
-        "author": "Mādhava (c. 1340-1425), Kerala School Tradition",
-        "sanskrit": "विबुधनेत्रगजाहिहुताशनत्रिगुणवेदभवारणबाहवः ।\nनवनिखर्वमिते वृतिविस्तरे परिधिमानमिदं जगदुर्बुधाः ॥",
-        "summary": "Using the Bhūta-saṅkhyā word-numeral system to encode an 11-decimal place precision value for pi (3.14159265359).",
-        "meaning": "• vibudha-netra-gaja-ahi-hutāśana-triguṇa-veda-bha-vāraṇa-bāhavaḥ: Word numerals encoding 2,827,433,388,233 (read right-to-left).\n• navanikharvamite: Measuring 9 nikharvas (9 * 10¹¹).\n• vṛtivistare: For the diameter of a circle.\n• paridhimānamidam jagadurbudhāḥ: This circumference measure the wise have declared.",
-        "input_guideline": "Fixed historical constant. Displays Mādhava's 11-decimal precision expansion.",
-        "formula": "π ≈ 2827433388233 / 900000000000 = 3.14159265359"
+        "one_liner": "Computes the near (sūkṣma) value of Pi (π ≈ 3927 / 1250 = 3.1416) verified by a computed 384-gon inscribed polygon and contrasts it with the gross (sthūla) practical ratio 22 / 7.",
+        "default_input": "0",
+        "author": "Līlāvatī of Bhāskarācārya (1150 CE), Kṣetravyavahāra, Rule 201",
+        "source_citation": "Primary Book Source: 'Colebrooke's Translation of the Līlāvatī', Edited with Notes by Haran Chandra Banerji (2nd Ed., The Book Company, Calcutta, 1927), Rule 201.",
+        "modern_citation": "Modern Benchmark Source: Machin's arctangent series (S. S. Sastry, Introductory Methods of Numerical Analysis) & IEEE 754-2019 64-bit constant π; 384-gon perimeter computed by chord-halving.",
+        "sanskrit": "व्यासे भनन्दाग्निहते विभक्ते खबाणसूर्यैः परिधिः स सूक्ष्मः ।\nद्वाविंशतिघ्ने विहृतेऽथ शैलैः स्थूलोऽथवा स्याद्व्यवहारयोग्यः ॥ २०१ ॥",
+        "transliteration": "vyāse bhanandāgnihate vibhakte khabāṇasūryaiḥ paridhiḥ sa sūkṣmaḥ |\ndvāviṃśatighne vihṛte'tha śailaiḥ sthūlo'thavā syādvyavahārayogyaḥ || 201 ||",
+        "summary": "Rule 201 (Colebrooke / Banerji, Līlāvatī 201): When the diameter of a circle is multiplied by three thousand nine hundred and twenty-seven (3927) and divided by twelve hundred and fifty (1250), the quotient is the near (sūkṣma) circumference: or multiplied by twenty-two (22) and divided by seven (7), it is the gross (sthūla) circumference adapted to practice.",
+        "meaning": "• vyāse bha-nanda-agni-hate: When the diameter (vyāsa) is multiplied by 3927 (Bhūta-saṅkhyā right-to-left: bha [nakṣatras] = 27, nanda = 9, agni [fires] = 3 -> 3927).\n• vibhakte kha-bāṇa-sūryaiḥ: And divided by 1250 (kha [sky/zero] = 0, bāṇa [arrows] = 5, sūrya [suns] = 12 -> 1250).\n• paridhiḥ sa sūkṣmaḥ: That quotient is the near / accurate (sūkṣma) circumference (π ≈ 3927 / 1250 = 3.1416).\n• dvāviṃśatighne vihṛte'tha śailaiḥ: Or multiplied by 22 (dvāviṃśati) and divided by 7 (śaila [mountains] = 7).\n• sthūlo'thavā syād vyavahārayogyaḥ: Gives the gross (sthūla) circumference adapted to everyday practical use (π ≈ 22 / 7 ≈ 3.142857).",
+        "input_guideline": "Static Sutra (Fixed Historical Constant): No user input is required. Rule 201 directly specifies the reduced canonical ratio 3927 / 1250 = 3.1416 and an inscribed 384-gon verification computed by chord-halving for D = 1250.",
+        "formula": "Sūkṣma: π ≈ 3927 / 1250 = 3.1416  |  384-gon check: P₃₈₄ / D = 3926.947 / 1250 ≈ 3.141558  |  Sthūla: π ≈ 22 / 7 ≈ 3.142857"
     }
 }
+
+
+def matching_decimals(a, m, cap=12):
+    k = 0
+    for d in range(0, cap + 1):
+        if round(a, d) == round(m, d):
+            k = d
+        else:
+            break
+    return k
+
+
+def execute_aryabhata_vargamula(N: float):
+    per = 2
+    scale = 10 ** (per * DECIMAL_PLACES)
+    dec_N = Decimal(str(N))
+    scaled = int((dec_N * scale).to_integral_value(rounding=ROUND_HALF_UP))
+    int_part = scaled // scale
+    frac_digits = str(scaled % scale).zfill(per * DECIMAL_PLACES)
+
+    str_int = str(int_part)
+    n_digits = len(str_int)
+
+    labels = []
+    for i in range(n_digits):
+        dist_from_right = n_digits - 1 - i
+        labels.append('o' if dist_from_right % 2 == 0 else 'e')
+
+    label_display = " ".join(labels)
+    digit_display = " ".join(list(str_int))
+
+    steps = [{
+        "step": 1,
+        "theory": "Denote the odd (varga) and even (avarga) places by 'o' and 'e' respectively, counting from right to left (Shukla & Sarma, Gaṇitapāda 4).",
+        "math": f"Places: [ {label_display} ]  over  Digits: [ {digit_display} ]"
+    }]
+
+    idx = 1 if labels[0] == 'o' else 2
+    first_odd_val = int(str_int[0:idx])
+    first_root = int(math.isqrt(first_odd_val))
+    sq_sub = first_root * first_root
+    rem = first_odd_val - sq_sub
+    running_root = first_root
+
+    steps.append({
+        "step": 2,
+        "theory": f"Subtract the greatest possible square ({first_root}² = {sq_sub}) from the leftmost odd place ({first_odd_val}), and write {first_root} in the line of the square root.",
+        "math": f"{first_odd_val} - {sq_sub} = {rem} (Remainder)  |  Line of Square Root = {running_root}"
+    })
+
+    total_pairs_left = (n_digits - idx) // 2
+    ancient_iter_history = [float(running_root * (10 ** total_pairs_left))]
+    contributions = [{"label": f"Initial Odd Place Root ({first_root}×10^{total_pairs_left})", "value": float(running_root * (10 ** total_pairs_left))}]
+
+    step_num = 3
+    pair_counter = 1
+    while idx < n_digits:
+        even_digit = int(str_int[idx])
+        odd_digit = int(str_int[idx + 1])
+        idx += 2
+        pairs_remaining = (n_digits - idx) // 2
+
+        dividend_even = rem * 10 + even_digit
+        divisor = 2 * running_root
+        q = 0
+        for candidate_q in range(9, -1, -1):
+            after_div_rem = dividend_even - (divisor * candidate_q)
+            if after_div_rem >= 0 and (after_div_rem * 10 + odd_digit) >= (candidate_q * candidate_q):
+                q = candidate_q
+                break
+
+        prod_div = divisor * q
+        rem_after_even = dividend_even - prod_div
+        next_odd_num = rem_after_even * 10 + odd_digit
+        q_sq = q * q
+        rem = next_odd_num - q_sq
+        running_root = running_root * 10 + q
+
+        steps.append({
+            "step": step_num,
+            "theory": f"Bring down the next even ('e') place digit ({even_digit}) to form {dividend_even}. Divide by twice the current root (2 × {running_root // 10} = {divisor}) to get quotient {q}.",
+            "math": f"{divisor} ) {dividend_even} ( {q}   =>   {dividend_even} - {prod_div} = {rem_after_even}"
+        })
+        step_num += 1
+
+        steps.append({
+            "step": step_num,
+            "theory": f"Bring down the next odd ('o') place digit ({odd_digit}) to form {next_odd_num}. Subtract the square of the quotient ({q}² = {q_sq}) and set down {q} in the line of the square root.",
+            "math": f"{next_odd_num} - {q_sq} = {rem} (Remainder)  |  Line of Square Root = {running_root}"
+        })
+        step_num += 1
+
+        ancient_iter_history.append(float(running_root * (10 ** pairs_remaining)))
+        contributions.append({"label": f"Integer Pair {pair_counter} Digit ({q}×10^{pairs_remaining})", "value": float(q * (10 ** pairs_remaining))})
+        pair_counter += 1
+
+    if rem == 0 and all(ch == '0' for ch in frac_digits) and (dec_N * scale == scaled):
+        is_exact = True
+        steps.append({
+            "step": step_num,
+            "theory": "The process ends. The remainder being zero, the square root is exact (Shukla & Sarma, Gaṇitapāda 4).",
+            "math": f"Final Exact Square Root = {running_root}"
+        })
+        final_ancient_val = float(running_root)
+    else:
+        dec_places = 0
+        for f_idx in range(0, per * DECIMAL_PLACES, 2):
+            even_d = int(frac_digits[f_idx])
+            odd_d = int(frac_digits[f_idx + 1])
+            dec_places += 1
+
+            dividend_even = rem * 10 + even_d
+            divisor = 2 * running_root
+            q = 0
+            for candidate_q in range(9, -1, -1):
+                after_div_rem = dividend_even - (divisor * candidate_q)
+                if after_div_rem >= 0 and (after_div_rem * 10 + odd_d) >= (candidate_q * candidate_q):
+                    q = candidate_q
+                    break
+
+            prod_div = divisor * q
+            rem_after_even = dividend_even - prod_div
+            next_odd_num = rem_after_even * 10 + odd_d
+            q_sq = q * q
+            rem = next_odd_num - q_sq
+            running_root = running_root * 10 + q
+            current_dec_val = running_root / (10 ** dec_places)
+            ancient_iter_history.append(current_dec_val)
+            contributions.append({"label": f"Decimal Place -{dec_places} Digit ({q}×10^-{dec_places})", "value": float(q / (10 ** dec_places))})
+
+            steps.append({
+                "step": step_num,
+                "theory": f"Decimal Pair {dec_places} — Even ('e') Step: Append even digit ({even_d}) to remainder to form {dividend_even}. Divide by twice running root (2 × {divisor // 2} = {divisor}) yielding quotient q = {q}.",
+                "math": f"{divisor} ) {dividend_even} ( {q}   =>   {dividend_even} - {prod_div} = {rem_after_even}"
+            })
+            step_num += 1
+
+            steps.append({
+                "step": step_num,
+                "theory": f"Decimal Pair {dec_places} — Odd ('o') Step: Append odd digit ({odd_d}) to form {next_odd_num}. Subtract q² ({q}² = {q_sq}) leaving remainder {rem}. Running root = {current_dec_val}.",
+                "math": f"{next_odd_num} - {q_sq} = {rem} (Remainder)  |  Line of Square Root = {current_dec_val}"
+            })
+            step_num += 1
+
+        is_exact = (rem == 0 and dec_N * scale == scaled)
+        final_ancient_val = running_root / (10 ** DECIMAL_PLACES)
+        if is_exact:
+            steps.append({
+                "step": step_num,
+                "theory": "The process ends. The remainder being zero, the square root is exact (Shukla & Sarma, Gaṇitapāda 4).",
+                "math": f"Final Exact Square Root = {final_ancient_val}"
+            })
+
+    return final_ancient_val, steps, ancient_iter_history, is_exact, rem, contributions
+
+
+def execute_aryabhata_ghanamula(N: float):
+    per = 3
+    scale = 10 ** (per * DECIMAL_PLACES)
+    dec_N = Decimal(str(N))
+    scaled = int((dec_N * scale).to_integral_value(rounding=ROUND_HALF_UP))
+    int_part = scaled // scale
+    frac_digits = str(scaled % scale).zfill(per * DECIMAL_PLACES)
+
+    str_int = str(int_part)
+    n_digits = len(str_int)
+
+    labels = []
+    for i in range(n_digits):
+        dist_from_right = n_digits - 1 - i
+        mod = dist_from_right % 3
+        if mod == 0:
+            labels.append('c')
+        elif mod == 2:
+            labels.append("n'")
+        else:
+            labels.append('n')
+
+    label_display = " ".join(labels)
+    digit_display = " ".join(list(str_int))
+
+    steps = [{
+        "step": 1,
+        "theory": "Denote the cube places by 'c', the first non-cube places by 'n', and the second non-cube places by 'n'', counting from right to left in triplets (Shukla & Sarma, Gaṇitapāda 5).",
+        "math": f"Places: [ {label_display} ]  over  Digits: [ {digit_display} ]"
+    }]
+
+    first_c_idx = labels.index('c')
+    idx = first_c_idx + 1
+    first_group_val = int(str_int[0:idx])
+
+    first_root = 0
+    for r in range(9, -1, -1):
+        if (r ** 3) <= first_group_val:
+            first_root = r
+            break
+
+    cube_sub = first_root ** 3
+    rem = first_group_val - cube_sub
+    running_root = first_root
+
+    steps.append({
+        "step": 2,
+        "theory": f"Subtract the greatest possible cube ({first_root}³ = {cube_sub}) from the last (leftmost) cube group ({first_group_val}), and write {first_root} in the line of the cube root.",
+        "math": f"{first_group_val} - {cube_sub} = {rem} (Remainder)  |  Line of Cube Root = {running_root}"
+    })
+
+    triplets_left = (n_digits - idx) // 3
+    ancient_iter_history = [float(running_root * (10 ** triplets_left))]
+    contributions = [{"label": f"Initial Cube Group Root ({first_root}×10^{triplets_left})", "value": float(running_root * (10 ** triplets_left))}]
+
+    step_num = 3
+    triplet_counter = 1
+    while idx < n_digits:
+        n_prime_digit = int(str_int[idx])
+        n_digit = int(str_int[idx + 1])
+        c_digit = int(str_int[idx + 2])
+        idx += 3
+        triplets_left = (n_digits - idx) // 3
+
+        dividend_np = rem * 10 + n_prime_digit
+        divisor = 3 * (running_root ** 2)
+
+        q = 0
+        for candidate_q in range(9, -1, -1):
+            rem1 = dividend_np - (divisor * candidate_q)
+            if rem1 >= 0:
+                rem2 = (rem1 * 10 + n_digit) - (3 * running_root * (candidate_q ** 2))
+                if rem2 >= 0:
+                    rem3 = (rem2 * 10 + c_digit) - (candidate_q ** 3)
+                    if rem3 >= 0:
+                        q = candidate_q
+                        break
+
+        prod_np = divisor * q
+        rem_np = dividend_np - prod_np
+
+        steps.append({
+            "step": step_num,
+            "theory": f"Bring down the second non-cube place ('n'') digit ({n_prime_digit}) to form {dividend_np}. Divide by thrice the square of the current cube root (3 × {running_root}² = {divisor}) to get quotient {q}.",
+            "math": f"{divisor} ) {dividend_np} ( {q}   =>   {dividend_np} - {prod_np} = {rem_np}"
+        })
+        step_num += 1
+
+        dividend_n = rem_np * 10 + n_digit
+        sub_3ab2 = 3 * running_root * (q ** 2)
+        rem_n = dividend_n - sub_3ab2
+
+        steps.append({
+            "step": step_num,
+            "theory": f"Bring down the first non-cube place ('n') digit ({n_digit}) to form {dividend_n}. Subtract the square of the quotient multiplied by thrice the previous root (3 × {running_root} × {q}² = {sub_3ab2}).",
+            "math": f"{dividend_n} - {sub_3ab2} = {rem_n}"
+        })
+        step_num += 1
+
+        dividend_c = rem_n * 10 + c_digit
+        cube_q = q ** 3
+        rem = dividend_c - cube_q
+        running_root = running_root * 10 + q
+
+        steps.append({
+            "step": step_num,
+            "theory": f"Bring down the cube place ('c') digit ({c_digit}) to form {dividend_c}. Subtract the cube of the quotient ({q}³ = {cube_q}) and set down {q} in the line of the cube root.",
+            "math": f"{dividend_c} - {cube_q} = {rem} (Remainder)  |  Line of Cube Root = {running_root}"
+        })
+        step_num += 1
+
+        ancient_iter_history.append(float(running_root * (10 ** triplets_left)))
+        contributions.append({"label": f"Integer Triplet {triplet_counter} Digit ({q}×10^{triplets_left})", "value": float(q * (10 ** triplets_left))})
+        triplet_counter += 1
+
+    if rem == 0 and all(ch == '0' for ch in frac_digits) and (dec_N * scale == scaled):
+        is_exact = True
+        steps.append({
+            "step": step_num,
+            "theory": "The process ends. The remainder being zero, the required cube root is exact (Shukla & Sarma, Gaṇitapāda 5).",
+            "math": f"Final Exact Cube Root = {running_root}"
+        })
+        final_ancient_val = float(running_root)
+    else:
+        dec_places = 0
+        for f_idx in range(0, per * DECIMAL_PLACES, 3):
+            np_d = int(frac_digits[f_idx])
+            n_d = int(frac_digits[f_idx + 1])
+            c_d = int(frac_digits[f_idx + 2])
+            dec_places += 1
+
+            dividend_np = rem * 10 + np_d
+            divisor = 3 * (running_root ** 2)
+
+            q = 0
+            for candidate_q in range(9, -1, -1):
+                rem1 = dividend_np - (divisor * candidate_q)
+                if rem1 >= 0:
+                    rem2 = (rem1 * 10 + n_d) - (3 * running_root * (candidate_q ** 2))
+                    if rem2 >= 0:
+                        rem3 = (rem2 * 10 + c_d) - (candidate_q ** 3)
+                        if rem3 >= 0:
+                            q = candidate_q
+                            break
+
+            prod_np = divisor * q
+            rem_np = dividend_np - prod_np
+            dividend_n = rem_np * 10 + n_d
+            sub_3ab2 = 3 * running_root * (q ** 2)
+            rem_n = dividend_n - sub_3ab2
+            dividend_c = rem_n * 10 + c_d
+            cube_q = q ** 3
+            rem = dividend_c - cube_q
+            prev_root = running_root
+            running_root = running_root * 10 + q
+            current_dec_val = running_root / (10 ** dec_places)
+
+            steps.append({
+                "step": step_num,
+                "theory": f"Decimal Triplet {dec_places} — Step A (Place n'={np_d}): Bring down {np_d} to form {dividend_np}. Divide by 3a² (3 × {prev_root}² = {divisor}) yielding quotient q = {q}.",
+                "math": f"{divisor} ) {dividend_np} ( {q}   =>   {dividend_np} - {prod_np} = {rem_np}"
+            })
+            step_num += 1
+
+            steps.append({
+                "step": step_num,
+                "theory": f"Decimal Triplet {dec_places} — Step B (Place n={n_d}): Bring down {n_d} to form {dividend_n}. Subtract 3ab² (3 × {prev_root} × {q}² = {sub_3ab2}).",
+                "math": f"{dividend_n} - {sub_3ab2} = {rem_n}"
+            })
+            step_num += 1
+
+            steps.append({
+                "step": step_num,
+                "theory": f"Decimal Triplet {dec_places} — Step C (Place c={c_d}): Bring down {c_d} to form {dividend_c}. Subtract q³ ({q}³ = {cube_q}) leaving remainder {rem}. Running cube root = {current_dec_val}.",
+                "math": f"{dividend_c} - {cube_q} = {rem} (Remainder)  |  Line of Cube Root = {current_dec_val}"
+            })
+            step_num += 1
+
+            ancient_iter_history.append(current_dec_val)
+            contributions.append({"label": f"Decimal Place -{dec_places} Digit ({q}×10^-{dec_places})", "value": float(q / (10 ** dec_places))})
+
+        is_exact = (rem == 0 and dec_N * scale == scaled)
+        final_ancient_val = running_root / (10 ** DECIMAL_PLACES)
+        if is_exact:
+            steps.append({
+                "step": step_num,
+                "theory": "The process ends. The remainder being zero, the required cube root is exact (Shukla & Sarma, Gaṇitapāda 5).",
+                "math": f"Final Exact Cube Root = {final_ancient_val}"
+            })
+
+    return final_ancient_val, steps, ancient_iter_history, is_exact, rem, contributions
+
+
+GITIKAPADA_24_DIFFS = [
+    225, 224, 222, 219, 215, 210, 205, 199,
+    191, 183, 174, 164, 154, 143, 131, 119,
+    106,  93,  79,  65,  51,  37,  22,   7
+]
+
+def execute_aryabhata_jya(N: float):
+    if N <= 0 or N > QUADRANT_LIMIT_DEG:
+        raise HTTPException(status_code=400, detail="Validation error: Angle θ must be between 0° (exclusive) and 90° (inclusive) for Āryabhaṭa's quadrant Sine-Table (Jyā).")
+
+    R = SINE_RADIUS_ARCMIN
+    h_deg = 3.75
+    table = GITIKAPADA_24_DIFFS
+    angle_deg = float(N)
+    angle_min = angle_deg * 60.0
+
+    T = [0.0]
+    for d in table:
+        T.append(T[-1] + float(d))
+
+    exact_idx = angle_deg / h_deg
+    if abs(exact_idx - round(exact_idx)) < 1e-9:
+        base_idx = int(round(exact_idx))
+        frac = 0.0
+        is_exact_node = True
+    else:
+        base_idx = int(math.floor(exact_idx))
+        frac = exact_idx - base_idx
+        is_exact_node = False
+
+    full = base_idx
+
+    steps = [{
+        "step": 1,
+        "theory": "Initialize Āryabhaṭa's trigonometric quadrant parameters (Gītikāpāda 12): Quadrant = 90° = 5400' divided into 24 equal arc-intervals of h = 3°45' = 225', with circle radius R = 3438' and first Rsine R₁ = δ₁ = 225'.",
+        "math": f"Target Angle θ = {angle_deg}° ({angle_min}'),  Interval Step h = 3.75° (225'),  Radius R = 3438',  R₁ = δ₁ = 225'"
+    }]
+
+    d1 = 225.0
+    q1 = d1 / d1
+    d2_rule = d1 - q1
+    steps.append({
+        "step": 2,
+        "theory": "Apply first half-verse of Gaṇitapāda 12 ('prathamāccāpajyārdhādyairūnaṃ khaṇḍitaṃ dvitīyārdham'): The first Rsine (R₁ = 225') divided by itself (225/225 = 1) and diminished by that quotient gives the second Rsine-difference δ₂.",
+        "math": f"δ₂ = R₁ - (R₁ / R₁) = 225 - (225 / 225) = 225 - 1 = {int(d2_rule)}'  (Matches Gītikāpāda 12 'bhakhi' = 224')"
+    })
+
+    step_num = 3
+    rec_diffs = []
+    rec_rsines = []
+    contributions = []
+    devs = []
+
+    for k in range(1, full + 1):
+        if k == 1:
+            dk = 225.0
+            rsk = 225.0
+        else:
+            prev_rs = rec_rsines[-1]
+            prev_d = rec_diffs[-1]
+            dk = prev_d - (prev_rs / 225.0)
+            rsk = prev_rs + dk
+        rec_diffs.append(dk)
+        rec_rsines.append(rsk)
+
+        A = float(table[k - 1])
+        B = T[k]
+        Z = rsk - B
+        devs.append(abs(Z))
+
+        curr_angle = k * h_deg
+        steps.append({
+            "step": step_num,
+            "theory": f"Interval {k} (θ = {curr_angle}°): recurrence gives δ_{k} = {dk:.2f}' and R = {rsk:.2f}'; tabulated (Gītikāpāda) δ_{k} = {A:.2f}' and R = {B:.2f}'; deviation (recurrence − table) = {Z:+.2f}'.",
+            "math": f"Recurrence: δ_{k} = {dk:.2f}', R_{k} = {rsk:.2f}'  |  Table: δ_{k} = {int(A)}', T_{k} = {int(B)}'  |  Δ = {Z:+.2f}'"
+        })
+        step_num += 1
+        contributions.append({
+            "label": f"Interval {k} ({curr_angle}°): δ_{k} = {int(A)}'",
+            "value": A / R
+        })
+
+    if not is_exact_node:
+        base_val = T[base_idx]
+        d_next = float(table[base_idx])
+        added = frac * d_next
+        final_rsine = base_val + added
+        steps.append({
+            "step": step_num,
+            "theory": f"Linear interpolation (Trairāśika) within interval {base_idx + 1} from {base_idx * h_deg}° to {(base_idx + 1) * h_deg}° using fractional arc {frac:.4f} of tabular difference δ_{base_idx + 1} = {int(d_next)}'.",
+            "math": f"Rsin({angle_deg}°) = {base_val:.2f}' + ({frac:.4f} × {int(d_next)}') = {final_rsine:.4f}'"
+        })
+        step_num += 1
+        contributions.append({
+            "label": f"Interval {base_idx + 1} (partial: {frac:.4f} of {int(d_next)}')",
+            "value": added / R
+        })
+    else:
+        final_rsine = T[full]
+
+    final_sin = final_rsine / R
+    steps.append({
+        "step": step_num,
+        "theory": f"Normalize Āryabhaṭa's Rsine by circle radius R = 3438' to obtain the dimensionless sine value sin({angle_deg}°).",
+        "math": f"sin({angle_deg}°) = {final_rsine:.4f}' / 3438' = {final_sin:.6f}"
+    })
+    step_num += 1
+
+    max_dev = max(devs) if full >= 2 else 0.0
+    if full >= 2:
+        steps.append({
+            "step": step_num,
+            "theory": f"Recurrence vs table: maximum deviation = {max_dev:.2f}' over the intervals shown. The result uses the tabulated Rsines; the recurrence is displayed for comparison.",
+            "math": f"max |R_rec,k − T_k| (k = 1..{full}) = {max_dev:.2f}'"
+        })
+
+    history = [T[k] / R for k in range(1, full + 1)]
+    if not is_exact_node:
+        history.append(final_sin)
+    if full == 0:
+        history = [final_sin]
+
+    return final_sin, steps, history, is_exact_node, max_dev, contributions
+
+
+def execute_aryabhata_pi_static():
+    base_hundred = 100
+    added_four = 4
+    step1_val = base_hundred + added_four
+    mult_eight = 8
+    step2_val = step1_val * mult_eight
+    sixty_two_thousand = 62000
+    circumference = step2_val + sixty_two_thousand
+    ayuta = 10000
+    diameter = 2 * ayuta
+    ancient_pi = circumference / diameter
+
+    steps_ancient = [
+        {
+            "step": 1,
+            "theory": "Phrase 1 — 'caturadhikaṃ śatam' (Shukla & Sarma, Gaṇitapāda 10): Take 100 (śatam) and add 4 (caturadhikam).",
+            "math": f"100 + 4 = {step1_val}"
+        },
+        {
+            "step": 2,
+            "theory": "Phrase 2 — 'aṣṭaguṇam' (Gaṇitapāda 10): Multiply the resulting sum (104) by 8 (aṣṭa).",
+            "math": f"{step1_val} × 8 = {step2_val}"
+        },
+        {
+            "step": 3,
+            "theory": "Phrase 3 — 'dvāṣaṣṭistathā sahasrāṇām' (Gaṇitapāda 10): Add 62,000 (sixty-two thousands) to obtain the total circumference (vṛtta-pariṇāha).",
+            "math": f"{step2_val} + 62,000 = {circumference} (Circumference)"
+        },
+        {
+            "step": 4,
+            "theory": "Phrase 4 — 'ayutadvayaviṣkambhasya' (Gaṇitapāda 10): Specify the reference circle diameter (viṣkambha) as two ayutas (where 1 ayuta = 10,000).",
+            "math": f"Diameter = 2 × 10,000 = {diameter}"
+        },
+        {
+            "step": 5,
+            "theory": "Phrase 5 — 'āsanno vṛttapariṇāhaḥ' (Gaṇitapāda 10): Divide the circumference (62,832) by the diameter (20,000) to obtain the nearly approximate (āsanna) value of π.",
+            "math": f"π ≈ Circumference / Diameter = {circumference} / {diameter} = {ancient_pi:.4f}"
+        }
+    ]
+
+    ancient_iter_history = [
+        62000.0 / diameter,
+        62800.0 / diameter,
+        62832.0 / diameter
+    ]
+
+    contributions = [
+        {"label": "Base 62,000 / 20,000 (dvāṣaṣṭi-sahasrāṇām)", "value": 62000.0 / diameter},
+        {"label": "Hundred × 8 Term: (100 × 8) / 20,000 (śatam aṣṭaguṇam)", "value": 800.0 / diameter},
+        {"label": "Four × 8 Fine Correction: (4 × 8) / 20,000 (caturadhikam aṣṭaguṇam)", "value": 32.0 / diameter}
+    ]
+
+    return ancient_pi, steps_ancient, ancient_iter_history, contributions
+
+
+def polygon_stages(D: float = 1250.0):
+    R = D / 2.0
+    n = 6
+    s = R
+    stages = []
+    for _ in range(7):
+        stages.append((n, n * s))
+        s = math.sqrt(2.0 * R * R - R * math.sqrt(4.0 * R * R - s * s))
+        n *= 2
+    return stages
+
+
+def execute_bhaskara2_pi_static():
+    bha_nakshatras = 27
+    nanda = 9
+    agni_fires = 3
+    numerator_sukshma = agni_fires * 1000 + nanda * 100 + bha_nakshatras
+
+    kha_zero = 0
+    bana_arrows = 5
+    surya_suns = 12
+    denominator_sukshma = surya_suns * 100 + bana_arrows * 10 + kha_zero
+
+    sukshma_pi = numerator_sukshma / denominator_sukshma
+    sthula_pi = 22.0 / 7.0
+
+    stages = polygon_stages(float(denominator_sukshma))
+    P96 = dict(stages)[96]
+    P384 = dict(stages)[384]
+    ratio = P384 / denominator_sukshma
+
+    steps_ancient = [
+        {
+            "step": 1,
+            "theory": "Decode Bhūta-saṅkhyā Numerator — 'bhanandāgnihate' (Līlāvatī 201): bha (27 lunar mansions), nanda (9), agni (3 fires) read right-to-left gives multiplier 3,927.",
+            "math": f"Multiplier = [agni=3][nanda=9][bha=27] = {numerator_sukshma}"
+        },
+        {
+            "step": 2,
+            "theory": "Decode Bhūta-saṅkhyā Denominator — 'vibhakte khabāṇasūryaiḥ' (Līlāvatī 201): kha (0), bāṇa (5 arrows), sūrya (12 suns) read right-to-left gives divisor 1,250.",
+            "math": f"Divisor (Reference Diameter D) = [sūrya=12][bāṇa=5][kha=0] = {denominator_sukshma}"
+        },
+        {
+            "step": 3,
+            "theory": "Inscribed-polygon check (commentary tradition): halve chords from the regular hexagon (side 625) in a circle of diameter 1250 up to the 384-gon, using s_{2n} = √(2R² − R·√(4R² − s_n²)), R = 625.",
+            "math": f"P_6 = 3750 → P_96 = {P96:.3f} → P_384 = {P384:.3f} (P_384/1250 = {ratio:.6f}); nearest integer = 3927"
+        },
+        {
+            "step": 4,
+            "theory": "Reduction from Āryabhaṭa's Ratio & Sūkṣma (Near) Quotient — 'paridhiḥ sa sūkṣmaḥ': Dividing Āryabhaṭa's 62,832 / 20,000 by GCD = 16 yields 3927 / 1250 = 3.1416.",
+            "math": f"π_sūkṣma = (62832 ÷ 16) / (20000 ÷ 16) = {numerator_sukshma} / {denominator_sukshma} = {sukshma_pi:.4f}"
+        },
+        {
+            "step": 5,
+            "theory": "Sthūla (Gross Practical) Ratio — 'dvāviṃśatighne vihṛte'tha śailaiḥ sthūlo'thavā syādvyavahārayogyaḥ' (Līlāvatī 201): Multiplying by 22 and dividing by 7 (śaila = 7 mountains) gives the coarse everyday approximation.",
+            "math": f"π_sthūla = 22 / 7 = {sthula_pi:.6f}   (Difference from Sūkṣma = +{sthula_pi - sukshma_pi:.6f})"
+        }
+    ]
+
+    history = [p / 1250.0 for _, p in stages] + [3927.0 / 1250.0]
+
+    contributions = [
+        {"label": "Hexagon base (3750 / 1250)", "value": 3.0},
+        {"label": "Polygon doubling 6→384-gon excess", "value": P384 / 1250.0 - 3.0},
+        {"label": "Integer rounding to 3927", "value": 3927.0 / 1250.0 - P384 / 1250.0}
+    ]
+
+    return sukshma_pi, steps_ancient, history, contributions, P384
+
+
+def execute_modern_machin_pi():
+    modern_val = math.pi
+    steps_modern = [{
+        "step": 1,
+        "theory": "Machin's Inverse-Tangent Identity (S. S. Sastry, Numerical Analysis): Evaluate π = 16·arctan(1/5) − 4·arctan(1/239) using Taylor series arctan(x) = Σ (−1)^j x^(2j+1) / (2j+1).",
+        "math": "M_k = 16·Σ_{j<k} (−1)^j / ((2j+1)·5^(2j+1)) − 4·Σ_{j<k} (−1)^j / ((2j+1)·239^(2j+1))"
+    }]
+
+    history = []
+    running = 0.0
+    for k in range(1, 6):
+        j = k - 1
+        p = 2 * j + 1
+        sign = (-1.0) ** j
+        term = 16.0 * sign / (p * (5.0 ** p)) - 4.0 * sign / (p * (239.0 ** p))
+        running += term
+        history.append(running)
+        steps_modern.append({
+            "step": k + 1,
+            "theory": f"Machin Series Iteration k = {k} (up to degree {p}): Add term j = {j} to partial sum.",
+            "math": f"Partial sum after {k} terms = {running:.8f}   (Error: {abs(running - modern_val):.2e})"
+        })
+
+    steps_modern.append({
+        "step": 7,
+        "theory": "Final IEEE 754-2019 64-bit Hardware Floating-Point Transcendental Constant verification.",
+        "math": f"IEEE 754 ground truth π = {modern_val:.8f}"
+    })
+
+    return modern_val, steps_modern, history
+
+
+def execute_modern_maclaurin_sine(angle_deg: float):
+    rad = math.radians(angle_deg)
+    modern_val = math.sin(rad)
+    steps_modern = [{
+        "step": 1,
+        "theory": "Methodology [S. S. Sastry, Numerical Analysis & IEEE 754]: Convert angle θ from degrees to radians x = θ × (π / 180) for Maclaurin series sin(x) = ∑ (-1)^n x^(2n+1) / (2n+1)!.",
+        "math": f"x = {angle_deg}° × (π / 180°) = {round(rad, 8)} radians"
+    }]
+    modern_iter_history = []
+    running_sin = 0.0
+    for n in range(4):
+        power = 2 * n + 1
+        fact = math.factorial(power)
+        sign = (-1) ** n
+        term = sign * (rad ** power) / fact
+        running_sin += term
+        iter_err = abs(running_sin - modern_val)
+        modern_iter_history.append(round(running_sin, 6))
+        sign_str = "+" if sign > 0 else "-"
+        steps_modern.append({
+            "step": n + 2,
+            "theory": f"Maclaurin Series Term {n+1} (Degree {power}): Add {sign_str} x^{power}/{power}! to partial sum.",
+            "math": f"Term = {sign_str} ({round(rad, 5)})^{power} / {fact} = {round(term, 8)}  =>  Partial Sum S_{n+1} = {round(running_sin, 8)}  (Error: {iter_err:.2e})"
+        })
+    steps_modern.append({
+        "step": 6,
+        "theory": "Final IEEE 754-2019 64-bit Hardware Floating-Point Benchmark verification (alongside equivalent R·sin(θ) in arcminutes for R = 3438').",
+        "math": f"IEEE 754 sin({angle_deg}°) = {round(modern_val, 8)}   (Exact R·sin θ = {round(modern_val * SINE_RADIUS_ARCMIN, 4)}')"
+    })
+    return modern_val, steps_modern, modern_iter_history
+
+
+def execute_modern_newton_sqrt(N: float, initial_seed: float):
+    steps_modern = []
+    modern_val = math.sqrt(N)
+    x_curr = initial_seed if initial_seed > 0 else 1.0
+    modern_iter_history = [round(x_curr, 6)]
+    steps_modern.append({
+        "step": 1,
+        "theory": "Methodology [S. S. Sastry, Numerical Analysis / IEEE 754]: Formulate square root extraction as finding the root of non-linear equation f(x) = x² - N = 0 with derivative f'(x) = 2x.",
+        "math": f"f(x) = x² - {N} = 0,   Initial Seed x₀ = {x_curr}"
+    })
+    for k in range(1, 5):
+        x_next = 0.5 * (x_curr + (N / x_curr))
+        iter_err = abs(x_next - modern_val)
+        steps_modern.append({
+            "step": k + 1,
+            "theory": f"Newton-Raphson Iteration {k}: Apply quadratic convergence formula x_{k} = x_{k-1} - f(x_{k-1})/f'(x_{k-1}) = 0.5 × (x_{k-1} + N / x_{k-1}).",
+            "math": f"x_{k} = 0.5 × ({round(x_curr, 6)} + {N} / {round(x_curr, 6)}) = {round(x_next, 8)}   (Error: {iter_err:.2e})"
+        })
+        modern_iter_history.append(round(x_next, 6))
+        x_curr = x_next
+    steps_modern.append({
+        "step": 6,
+        "theory": "Final IEEE 754-2019 64-bit Hardware Floating-Point Benchmark verification.",
+        "math": f"IEEE 754 Ground Truth = {round(modern_val, 8)}"
+    })
+    return modern_val, steps_modern, modern_iter_history
+
+
+def execute_modern_newton_cuberoot(N: float, initial_seed: float):
+    steps_modern = []
+    modern_val = math.cbrt(N) if hasattr(math, "cbrt") else N ** (1.0 / 3.0)
+    x_curr = initial_seed if initial_seed > 0 else 1.0
+    modern_iter_history = [round(x_curr, 6)]
+    steps_modern.append({
+        "step": 1,
+        "theory": "Methodology [S. S. Sastry, Numerical Analysis / IEEE 754]: Formulate cube root extraction as finding the root of non-linear equation f(x) = x³ - N = 0 with derivative f'(x) = 3x².",
+        "math": f"f(x) = x³ - {N} = 0,   Initial Seed x₀ = {x_curr}"
+    })
+    for k in range(1, 5):
+        x_next = (2.0 * x_curr + (N / (x_curr ** 2))) / 3.0
+        iter_err = abs(x_next - modern_val)
+        steps_modern.append({
+            "step": k + 1,
+            "theory": f"Newton-Raphson Iteration {k}: Apply cubic convergence formula x_{k} = x_{k-1} - f(x_{k-1})/f'(x_{k-1}) = (2x_{k-1} + N / x_{k-1}²) / 3.",
+            "math": f"x_{k} = (2×{round(x_curr, 6)} + {N} / {round(x_curr, 6)}²) / 3 = {round(x_next, 8)}   (Error: {iter_err:.2e})"
+        })
+        modern_iter_history.append(round(x_next, 6))
+        x_curr = x_next
+    steps_modern.append({
+        "step": 6,
+        "theory": "Final IEEE 754-2019 64-bit Hardware Floating-Point Benchmark verification.",
+        "math": f"IEEE 754 Ground Truth = {round(modern_val, 8)}"
+    })
+    return modern_val, steps_modern, modern_iter_history
+
+
+def build_xai_explanations(method: str, N: float, ancient_val: float, modern_val: float, is_exact: bool, rem_val: float, contributions: list, extra=None):
+    if extra is None:
+        extra = {}
+    abs_err = abs(ancient_val - modern_val)
+    ref_val = abs(modern_val) if modern_val != 0 else 1.0
+    rel_err_pct = (abs_err / ref_val) * 100.0
+
+    total_contrib = sum(abs(c["value"]) for c in contributions) or 1.0
+    feature_attributions = []
+    for c in contributions:
+        pct = round((abs(c["value"]) / total_contrib) * 100.0, 2)
+        feature_attributions.append({
+            "feature": c["label"],
+            "value": round(c["value"], 6),
+            "importance_pct": pct,
+            "contribution_pct": pct
+        })
+
+    if method == "aryabhata_sqrt":
+        why_input = (
+            f"Input N = {N} has {len(str(int(N)))} integer digits, which decomposes into {(len(str(int(N))) + 1)//2} odd/even (varga/avarga) place-value pairs. "
+            + ("Because N = 55,225 is the canonical textbook benchmark (235²), it tests multi-digit carry propagation across 3 odd places and 2 even places with zero remainder."
+               if N == 55225 else
+               f"This input tests {'exact square root termination' if is_exact else f'non-square root approximation via {DECIMAL_PLACES} decimal pairs'}.")
+        )
+        why_steps = (
+            "Āryabhaṭa's algorithm performs an exact Radix-10 Binomial Decomposition based on (10a + b)² = 100a² + 20ab + b². "
+            "Subtracting a² from the leftmost odd ('o') place removes 100a²; dividing the adjacent even ('e') place by 2a isolates the next digit b (since 20ab / 20a = b); "
+            "and subtracting b² from the next odd ('o') place completes the identity."
+        )
+        why_error = (
+            f"Absolute error = {abs_err:.2e}, relative error = {rel_err_pct:.6f}%. "
+            f"Digits are extracted by truncation (not rounding) to {DECIMAL_PLACES} decimal places, so truncation error is below 10^-{DECIMAL_PLACES}; final remainder = {rem_val}."
+        )
+
+    elif method == "aryabhata_cuberoot":
+        why_input = (
+            f"Input N = {N} has {len(str(int(N)))} integer digits, which partitions into {(len(str(int(N))) + 2)//3} radix-10 cubic triplets (c, n', n). "
+            + ("Because N = 1,771,561 is Shukla & Sarma's textbook benchmark (121³), it validates multi-triplet extraction across 3 cube places and 4 non-cube places."
+               if N == 1771561 else
+               f"Because N = {N} is {'an exact cube' if is_exact else 'not an exact integer cube'}, the engine executes {'exact termination' if is_exact else f'decimal triplet continuation across {DECIMAL_PLACES} fractional places'}.")
+        )
+        why_steps = (
+            "Āryabhaṭa's Ghanamūla algorithm is a direct place-value inversion of the binomial cube expansion (10a + b)³ = 1000a³ + 300a²b + 30ab² + b³. "
+            "After removing 1000a³ from the cube ('c') place, dividing the second non-cube ('n'') place by 3a² isolates quotient digit b; "
+            "subtracting 3ab² from the first non-cube ('n') place and subtracting b³ from the cube ('c') place algebraically reconstructs (10a + b)³."
+        )
+        why_error = (
+            f"Absolute error = {abs_err:.2e}, relative error = {rel_err_pct:.6f}%. "
+            f"Digits are extracted by truncation (not rounding) to {DECIMAL_PLACES} decimal places, so truncation error is below 10^-{DECIMAL_PLACES}; final remainder = {rem_val}."
+        )
+
+    elif method == "aryabhata_sinetable":
+        why_input = (
+            f"Input θ = {N}° maps to arc-length {N * 60}' in a quadrant of 5400' ({QUADRANT_LIMIT_DEG}°). "
+            + (f"Because {N}° is an exact multiple of h = 3.75° (interval n = {int(round(N / 3.75))}), it directly evaluates Āryabhaṭa's 24-interval sine table at a node."
+               if is_exact else
+               f"Because {N}° lies between two tabular nodes ({int(N // 3.75) * 3.75}° and {(int(N // 3.75) + 1) * 3.75}°), it evaluates the sine table with linear interpolation (Trairāśika).")
+        )
+        why_steps = (
+            "Gaṇitapāda 12 states a discrete second-order finite-difference recurrence: "
+            "δ_n - δ_{n+1} = (R_n / R₁)(δ₁ - δ₂). Since Āryabhaṭa sets δ₁ = 225' and δ₂ = 224' (so δ₁ - δ₂ = 1), this simplifies to δ_{n+1} = δ_n - R_n / R₁ = R₁ - (R₁ + ... + R_n)/R₁."
+        )
+        why_error = (
+            f"Absolute error = {abs_err:.2e}, relative error = {rel_err_pct:.4f}%. "
+            f"The result uses the tabulated Rsines (R = {SINE_RADIUS_ARCMIN}', whole arcminutes) with linear interpolation between 3°45′ nodes; table quantisation and interpolation cause the error. "
+            f"The generating recurrence deviates from the table by up to {rem_val:.1f}' and is shown for comparison only."
+        )
+
+    elif method == "aryabhata_pi":
+        why_input = (
+            "Static Sutra Selection: No user input parameter is taken because Gaṇitapāda Verse 10 prescribes a fixed canonical reference circle "
+            "of Diameter D = 2 ayutas = 20,000 units and Circumference C = 62,832 units, yielding the universal mathematical constant π ≈ 3.1416."
+        )
+        why_steps = (
+            "The Sanskrit verse is structured as a compact arithmetic program to fit the Āryā poetic meter: "
+            "it decomposes 62,832 into [(100 + 4) × 8] + 62,000 = 832 + 62,000 = 62,832, and divides by 20,000 (ayuta-dvaya)."
+        )
+        why_error = (
+            f"Absolute error = {abs_err:.8f}, relative error = {rel_err_pct:.5f}%. "
+            f"Signed error = {ancient_val - modern_val:+.8f}; agrees with π to {matching_decimals(ancient_val, modern_val)} decimal places."
+        )
+
+    else:
+        P384 = extra.get("P384", 3926.947)
+        why_input = (
+            "Static Sutra Selection: No user input is required because Līlāvatī Rule 201 (Colebrooke / Banerji, Līlāvatī 201) defines a fixed canonical circle "
+            "of Diameter D = 1,250 units (khabāṇasūrya) and near Circumference C = 3,927 units (bhanandāgni), alongside the practical ratio 22 / 7."
+        )
+        why_steps = (
+            f"Reduction of Āryabhaṭa's ratio 62832/20000 by GCD 16 gives 3927/1250; "
+            f"an inscribed 384-gon computed by chord-halving gives perimeter ≈ {P384:.3f} for D = 1250, whose nearest integer is 3927."
+        )
+        why_error = (
+            f"Absolute error = {abs_err:.8f}, relative error = {rel_err_pct:.5f}%. "
+            f"Signed error = {ancient_val - modern_val:+.8f}: 3927 rounds the polygon perimeter {P384:.3f} up, and the inscribed polygon itself undershoots the circumference. "
+            f"22/7 = 3.142857 (sthūla) is shown only as the practical reference."
+        )
+
+    attribution_note = (
+        "Each value is the exact share of the final result contributed by that term or digit place "
+        "(a deterministic decomposition of the algorithm's own steps, not a SHAP/LIME-style estimate)."
+    )
+
+    return {
+        "why_this_input": why_input,
+        "why_these_steps": why_steps,
+        "why_error_size": why_error,
+        "feature_attributions": feature_attributions,
+        "attribution_note": attribution_note,
+        "input_rationale": why_input,
+        "ancient_logic": why_steps,
+        "convergence_analysis": why_error
+    }
+
 
 @app.post("/api/compute")
 def compute_approximation(req: ComputeRequest):
@@ -181,365 +942,137 @@ def compute_approximation(req: ComputeRequest):
 
     N = req.input_value
     method = req.method_id
+    extra = {}
 
-    # Strict Validation for negative and invalid inputs
-    if method in ["bakhshali_sqrt", "aryabhata_sqrt", "aryabhata_cuberoot"] and N < 0:
-        raise HTTPException(status_code=400, detail=f"Validation error: Input cannot be negative for square root or cube root extraction.")
-    
-    if method == "bhaskara1_sine" and (N < 0 or N > 180):
-        raise HTTPException(status_code=400, detail=f"Validation error: Angle must be between 0 and 180 degrees.")
+    if method in ("aryabhata_sqrt", "aryabhata_cuberoot", "aryabhata_sinetable"):
+        if not math.isfinite(N):
+            raise HTTPException(status_code=400, detail="Input must be a finite number.")
 
-    if method == "aryabhata_sinetable" and (N <= 0 or N > 24):
-        raise HTTPException(status_code=400, detail=f"Validation error: Table steps must be between 1 and 24.")
-
-    if method in ["madhava_sine", "madhava_cosine"] and N < 0:
-        raise HTTPException(status_code=400, detail=f"Validation error: Angle parameter cannot be negative.")
-
-    if method in ["madhava_pi", "nilakantha_pi"] and N <= 0:
-        raise HTTPException(status_code=400, detail=f"Validation error: Number of terms or triplets must be greater than 0.")
-
-    if method == "brahmagupta_interpolation" and not (0 <= N <= 1):
-        raise HTTPException(status_code=400, detail=f"Validation error: Residual interval fraction must be between 0 and 1.")
-
-    # Calculations & Authentic Algorithmic Simulations
-    if method == "bakhshali_sqrt":
-        val = N
-        A = float(int(val ** 0.5)) if val > 0 else 0.0
-        if A == 0: A = 1.0
-        b = val - (A * A)
-        q = A + (b / (2.0 * A)) if A > 0 else 0.0
-        ancient_val = q - (((b / (2.0 * A)) ** 2) / (2.0 * q)) if (A > 0 and q > 0) else 0.0
-        modern_val = math.sqrt(val)
-        steps_ancient = [
-            {"step": 1, "theory": "Identify nearest integer square root and calculate residual b.", "math": f"A = {A},  b = {val} - {A}² = {b}"},
-            {"step": 2, "theory": "Compute first-order Bakhshālī rational approximation q.", "math": f"q = {A} + ({b} / 2*{A}) = {round(q, 6)}"},
-            {"step": 3, "theory": "Apply second-order correction term yielding refined root.", "math": f"√N ≈ {round(q, 4)} - ({b}/2*{A})² / (2*{round(q, 4)}) = {round(ancient_val, 6)}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Load floating-point register with input value N.", "math": f"N = {val}"},
-            {"step": 2, "theory": "Execute hardware IEEE 754 Newton-Raphson instruction.", "math": f"sqrt({val}) = {round(modern_val, 8)}"}
-        ]
-        start_g = max(1.0, A * 0.7)
-        anc_curve = [round(start_g + (ancient_val - start_g) * (i / 4), 6) for i in range(5)]
-        mod_curve = [round(modern_val, 6)] * 5
-
-    elif method == "aryabhata_sqrt":
-        # Authentic Aryabhata Vargamula digit-pair simulation loop
-        val = int(N)
-        modern_val = math.sqrt(val)
-        
-        # Simulate digit-pair extraction steps
-        curr_root = 0
-        rem = 0
-        steps_ancient = []
-        
-        # Approximate grouping simulation
-        str_val = str(val)
-        if len(str_val) % 2 != 0:
-            str_val = "0" + str_val
-        
-        pairs = [str_val[i:i+2] for i in range(0, len(str_val), 2)]
-        root_digits = []
-        
-        for idx, p in enumerate(pairs):
-            rem = rem * 100 + int(p)
-            # Find largest digit d such that (20 * curr_root + d) * d <= rem
-            best_d = 0
-            for d in range(10):
-                if (20 * curr_root + d) * d <= rem:
-                    best_d = d
-                else:
-                    break
-            sub_val = (20 * curr_root + best_d) * best_d
-            rem -= sub_val
-            curr_root = curr_root * 10 + best_d
-            root_digits.append(best_d)
-            steps_ancient.append({
-                "step": idx + 1,
-                "theory": f"Group pair '{p}': subtract largest square product from accumulated remainder.",
-                "math": f"Digit quotient = {best_d}, Running root = {curr_root}, Remainder = {rem}"
-            })
-            
-        if not steps_ancient:
-            steps_ancient.append({"step": 1, "theory": "Execute Aryabhata digit-pair extraction loop.", "math": f"N = {val}"})
-
-        ancient_val = float(curr_root)
-        if rem > 0: # Add fractional refinement matching Aryabhata's method
-            ancient_val += round(rem / (2.0 * curr_root), 4)
-
-        steps_modern = [
-            {"step": 1, "theory": "Load input into FPU register.", "math": f"N = {val}"},
-            {"step": 2, "theory": "Execute hardware square root instruction.", "math": f"sqrt({val}) = {round(modern_val, 8)}"}
-        ]
-        start_g = max(1.0, ancient_val * 0.5)
-        anc_curve = [round(start_g + (ancient_val - start_g) * (i / 4), 6) for i in range(5)]
-        mod_curve = [round(modern_val, 6)] * 5
+    if method == "aryabhata_sqrt":
+        if not (0 < N <= 1e12):
+            raise HTTPException(status_code=400, detail="Input N must be greater than 0 and at most 1e12.")
+        ancient_val, steps_ancient, anc_history, is_exact, rem_val, contribs = execute_aryabhata_vargamula(N)
+        seed_val = anc_history[0] if len(anc_history) > 0 else 1.0
+        modern_val, steps_modern, mod_history = execute_modern_newton_sqrt(N, seed_val)
+        chart_kind = "refinement"
+        ancient_label = "Āryabhaṭa digit-by-digit root"
+        modern_label = "Newton–Raphson iterates"
+        reference_lines = {}
 
     elif method == "aryabhata_cuberoot":
-        val = N
-        ancient_val = round(val ** (1/3), 4)
-        modern_val = math.pow(val, 1/3)
-        steps_ancient = [
-            {"step": 1, "theory": "Group digits in triplets from right to left.", "math": f"Triplet grouping for N = {val}"},
-            {"step": 2, "theory": "Subtract cube of first digit and divide next place by 3a².", "math": "Cubic division phase"},
-            {"step": 3, "theory": "Yield precise cube root extraction.", "math": f"∛N = {ancient_val}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Load input into FPU register.", "math": f"N = {val}"},
-            {"step": 2, "theory": "Execute hardware cubic power function.", "math": f"N^(1/3) = {round(modern_val, 8)}"}
-        ]
-        start_g = ancient_val * 0.4
-        anc_curve = [round(start_g + (ancient_val - start_g) * (i / 4), 4) for i in range(5)]
-        mod_curve = [round(modern_val, 4)] * 5
-
-    elif method == "bhaskara1_sine":
-        angle = N
-        rad = math.radians(angle)
-        modern_val = math.sin(rad)
-        num = 4.0 * angle * (180.0 - angle)
-        den = 40500.0 - (angle * (180.0 - angle))
-        ancient_val = num / den if den != 0 else 0.0
-        steps_ancient = [
-            {"step": 1, "theory": "Compute auxiliary product term x(180 - x).", "math": f"{angle} * (180 - {angle}) = {angle * (180 - angle)}"},
-            {"step": 2, "theory": "Construct rational numerator and denominator terms.", "math": f"Num = {num},  Den = 40500 - {angle*(180-angle)} = {den}"},
-            {"step": 3, "theory": "Divide numerator by denominator to yield rational sine approximation.", "math": f"sin({angle}°) ≈ {round(ancient_val, 6)}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Convert angle degrees to radians.", "math": f"θ = {rad:.4f} rad"},
-            {"step": 2, "theory": "Evaluate IEEE 754 hardware sine function.", "math": f"sin({rad:.4f}) = {round(modern_val, 8)}"}
-        ]
-        start_g = ancient_val * 0.6
-        anc_curve = [round(start_g + (ancient_val - start_g) * (i / 4), 4) for i in range(5)]
-        mod_curve = [round(modern_val, 4)] * 5
+        if not (0 < N <= 1e12):
+            raise HTTPException(status_code=400, detail="Input N must be greater than 0 and at most 1e12.")
+        ancient_val, steps_ancient, anc_history, is_exact, rem_val, contribs = execute_aryabhata_ghanamula(N)
+        seed_val = anc_history[0] if len(anc_history) > 0 else 1.0
+        modern_val, steps_modern, mod_history = execute_modern_newton_cuberoot(N, seed_val)
+        chart_kind = "refinement"
+        ancient_label = "Āryabhaṭa digit-by-digit root"
+        modern_label = "Newton–Raphson iterates"
+        reference_lines = {}
 
     elif method == "aryabhata_sinetable":
-        # Authentic Aryabhata second-order sine table difference simulation (Gitikapada V.12)
-        steps_count = int(N)
-        R = 3438.0 # Standard Indian astronomical radius units
-        s_vals = [0.0]
-        curr_s = 0.0
-        # First difference delta_s1 = 225 minutes (approx 3.75 deg)
-        delta = 225.0
-        for i in range(1, 25):
-            curr_s += delta
-            s_vals.append(curr_s)
-            # Aryabhata second difference recurrence: delta_next = delta - (delta / R)
-            delta = delta - (delta / R)
-
-        target_idx = min(steps_count, 24)
-        ancient_val = s_vals[target_idx] / R # Normalized sine value
-        modern_val = math.sin(math.radians(target_idx * 3.75))
+        if N <= 0 or N > QUADRANT_LIMIT_DEG:
+            raise HTTPException(status_code=400, detail="Validation error: Angle θ must be between 0° (exclusive) and 90° (inclusive) for Āryabhaṭa's quadrant Sine-Table (Jyā).")
+        ancient_val, steps_ancient, anc_history, is_exact_node, max_dev, contribs = execute_aryabhata_jya(N)
+        modern_val, steps_modern, _ = execute_modern_maclaurin_sine(N)
         
-        steps_ancient = [
-            {"step": 1, "theory": "Initialize standard circle radius R = 3438 minutes and first difference delta = 225.", "math": "R = 3438, δ₁ = 225"},
-            {"step": 2, "theory": "Apply Aryabhata's second-order difference recurrence relation: δₙ₊₁ = δₙ - (δₙ / R).", "math": f"Step {target_idx} cumulative half-chord"},
-            {"step": 3, "theory": "Normalize chord length by radius R to yield sine value.", "math": f"sin(θ) ≈ {round(ancient_val, 6)}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Compute target angle corresponding to table steps (3.75° per step).", "math": f"θ = {target_idx * 3.75}°"},
-            {"step": 2, "theory": "Evaluate standard floating-point sine function.", "math": f"sin(θ) = {round(modern_val, 8)}"}
-        ]
-        start_g = ancient_val * 0.75
-        anc_curve = [round(start_g + (ancient_val - start_g) * (i / 4), 4) for i in range(5)]
-        mod_curve = [round(modern_val, 4)] * 5
-
-    elif method == "madhava_sine":
-        angle_rad = math.radians(N)
-        ancient_val = angle_rad - (angle_rad**3)/6 + (angle_rad**5)/120 - (angle_rad**7)/5040
-        modern_val = math.sin(angle_rad)
-        steps_ancient = [
-            {"step": 1, "theory": "Take arc angle in radians and compute odd powers.", "math": f"θ = {angle_rad:.4f}"},
-            {"step": 2, "theory": "Divide successively by odd integer factorial divisors with alternating signs.", "math": "θ - θ³/3! + θ⁵/5! - θ⁷/7!"},
-            {"step": 3, "theory": "Yield Mādhava sine series approximation.", "math": f"sin(θ) ≈ {round(ancient_val, 6)}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Load radian angle into FPU.", "math": f"θ = {angle_rad:.4f}"},
-            {"step": 2, "theory": "Execute hardware sine function.", "math": f"sin(θ) = {round(modern_val, 8)}"}
-        ]
-        term1 = angle_rad
-        term2 = term1 - (angle_rad**3)/6
-        term3 = term2 + (angle_rad**5)/120
-        anc_curve = [round(term1, 6), round(term2, 6), round(term3, 6), round(ancient_val, 6), round(ancient_val, 6)]
-        mod_curve = [round(modern_val, 6)] * 5
-
-    elif method == "madhava_cosine":
-        angle_rad = math.radians(N)
-        ancient_val = 1.0 - (angle_rad**2)/2 + (angle_rad**4)/24 - (angle_rad**6)/720
-        modern_val = math.cos(angle_rad)
-        steps_ancient = [
-            {"step": 1, "theory": "Take arc angle in radians and compute even powers.", "math": f"θ = {angle_rad:.4f}"},
-            {"step": 2, "theory": "Divide by even factorials with alternating signs.", "math": "1 - θ²/2! + θ⁴/4! - θ⁶/6!"},
-            {"step": 3, "theory": "Yield Mādhava cosine series approximation.", "math": f"cos(θ) ≈ {round(ancient_val, 6)}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Load radian angle into FPU.", "math": f"θ = {angle_rad:.4f}"},
-            {"step": 2, "theory": "Execute hardware cosine function.", "math": f"cos(θ) = {round(modern_val, 8)}"}
-        ]
-        term1 = 1.0
-        term2 = 1.0 - (angle_rad**2)/2
-        term3 = term2 + (angle_rad**4)/24
-        anc_curve = [round(term1, 6), round(term2, 6), round(term3, 6), round(ancient_val, 6), round(ancient_val, 6)]
-        mod_curve = [round(modern_val, 6)] * 5
-
-    elif method == "madhava_pi":
-        terms = int(N)
-        pi_approx = sum(((-1)**n) / (2*n + 1) for n in range(terms))
-        ancient_val = 4 * pi_approx
-        modern_val = math.pi
-        steps_ancient = [
-            {"step": 1, "theory": "Initialize alternating Leibniz series denominator set.", "math": f"n from 0 to {terms}"},
-            {"step": 2, "theory": "Accumulate alternating fractional sum across series expansion.", "math": f"Sum = 1 - 1/3 + 1/5 - ... = {round(pi_approx, 6)}"},
-            {"step": 3, "theory": "Multiply cumulative sum by 4 to yield Pi approximation.", "math": f"π ≈ 4 * {round(pi_approx, 6)} = {round(ancient_val, 6)}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Load transcendental constant register.", "math": "Constant Reg <- π"},
-            {"step": 2, "theory": "Evaluate hardware standard constant.", "math": f"π = {round(modern_val, 8)}"}
-        ]
-        anc_curve = [round(4 * sum(((-1)**i)/(2*i+1) for i in range(max(1, int(terms*k/5)))), 6) for k in range(1, 6)]
-        mod_curve = [round(math.pi, 6)] * 5
-
-    elif method == "nilakantha_pi":
-        triplets = int(N)
-        pi_approx = 3.0
-        for n in range(1, triplets + 1):
-            term = 4.0 / ((2*n) * (2*n + 1) * (2*n + 2))
-            pi_approx += term if n % 2 != 0 else -term
-        ancient_val = pi_approx
-        modern_val = math.pi
-        steps_ancient = [
-            {"step": 1, "theory": "Initialize base constant 3 and prepare accelerated triplet factors.", "math": f"k from 1 to {triplets}"},
-            {"step": 2, "theory": "Add and subtract accelerated fractions using successive odd numbers.", "math": "± 4 / [ (2n) * (2n+1) * (2n+2) ]"},
-            {"step": 3, "theory": "Yield rapidly converging Pi expansion result.", "math": f"π ≈ {round(ancient_val, 6)}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Access IEEE 754 hardware constant register.", "math": "FPU Register <- π"},
-            {"step": 2, "theory": "Return double precision hardware standard.", "math": f"π = {round(modern_val, 8)}"}
-        ]
-        anc_curve = [round(3.0 + sum(((-1)**(k-1)*4)/((2*k)*(2*k+1)*(2*k+2)) for k in range(1, max(2, int(triplets*i/5)))), 6) for i in range(1, 6)]
-        mod_curve = [round(math.pi, 6)] * 5
-
-    elif method == "brahmagupta_interpolation":
-        x = N
-        df1, df2 = 10.0, 8.0
-        ancient_val = 100.0 + x * ((df1 + df2)/2) + (x**2) * ((df2 - df1)/2)
-        modern_val = 100.0 + x * 9.0
-        steps_ancient = [
-            {"step": 1, "theory": "Compute half-sum of past and future tabular differences.", "math": "(Δf₁ + Δf₂) / 2"},
-            {"step": 2, "theory": "Multiply residual interval fraction x and add second-order correction term.", "math": f"f(a+xh) ≈ 100 + {x}*(9) + ..."},
-            {"step": 3, "theory": "Yield interpolated value.", "math": f"Interpolated Value = {round(ancient_val, 4)}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Execute modern polynomial curve interpolation.", "math": f"P({x})"},
-            {"step": 2, "theory": "Return computed value.", "math": f"Value = {round(modern_val, 4)}"}
-        ]
-        anc_curve = [round(100.0 + (x*i/4) * 9.0, 4) for i in range(1, 6)]
-        mod_curve = [round(modern_val, 4)] * 5
-
-    # --- Static Constants ---
-    elif method == "baudhayan_root2":
-        ancient_val = 1.0 + (1.0/3.0) + (1.0/(3.0*4.0)) - (1.0/(3.0*4.0*34.0))
-        modern_val = math.sqrt(2.0)
-        steps_ancient = [
-            {"step": 1, "theory": "Take unit measure 1 and add its third part.", "math": "1 + 1/3 = 1.3333"},
-            {"step": 2, "theory": "Add fourth part of that third and subtract thirty-fourth part.", "math": "+ 1/(3*4) - 1/(3*4*34)"},
-            {"step": 3, "theory": "Yield exact historical rational fraction approximation.", "math": "√2 ≈ 577 / 408 = 1.4142157"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Load unit scale into hardware FPU square root register.", "math": "sqrt(2.0)"},
-            {"step": 2, "theory": "Generate IEEE 754 hardware standard floating-point result.", "math": f"{round(modern_val, 8)}"}
-        ]
-        anc_curve = [1.3333, 1.4166, 1.4142, 1.414215, round(ancient_val, 6)]
-        mod_curve = [round(modern_val, 6)] * 5
+        # Build honest node-by-node coordinate history for sine table graph
+        exact_idx = N / 3.75
+        base_idx = int(math.floor(exact_idx))
+        full = base_idx
+        is_node = abs(exact_idx - round(exact_idx)) < 1e-9
+        
+        node_angles = [k * 3.75 for k in range(1, full + 1)]
+        if not is_node and full > 0:
+            node_angles.append(N)
+        if full == 0:
+            node_angles = [N]
+            
+        mod_history = [round(math.sin(math.radians(th)), 6) for th in node_angles]
+        labels_iter = [f"{th:g}°" for th in node_angles]
+        
+        chart_kind = "table_nodes"
+        ancient_label = "Āryabhaṭa Rsine / R at successive table nodes"
+        modern_label = "Modern sin(θ) at corresponding node angles"
+        reference_lines = {}
+        rem_val = max_dev
 
     elif method == "aryabhata_pi":
-        ancient_val = 62832.0 / 20000.0
-        modern_val = math.pi
-        steps_ancient = [
-            {"step": 1, "theory": "Multiply (100 + 4) by 8 and add 62,832.", "math": "(104 * 8) + 62832 = 62832"},
-            {"step": 2, "theory": "Divide by two ayutas (20,000) diameter.", "math": "62832 / 20000"},
-            {"step": 3, "theory": "Yield āsanna ratio.", "math": f"π ≈ {ancient_val}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Access IEEE 754 constant.", "math": "math.pi"},
-            {"step": 2, "theory": "Return ground truth.", "math": f"π = {round(modern_val, 8)}"}
-        ]
-        anc_curve = [3.1, 3.12, 3.13, 3.14, ancient_val]
-        mod_curve = [round(modern_val, 6)] * 5
-
-    elif method == "brahmagupta_pi_root10":
-        ancient_val = math.sqrt(10.0)
-        modern_val = math.pi
-        steps_ancient = [
-            {"step": 1, "theory": "Take square of diameter/radius multiplied by 10 for fine computation.", "math": "10 * r²"},
-            {"step": 2, "theory": "Take square root of the result.", "math": "√10"},
-            {"step": 3, "theory": "Yield precise practical constant.", "math": f"π ≈ √10 = {round(ancient_val, 6)}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Access hardware constant.", "math": "math.pi"},
-            {"step": 2, "theory": "Return ground truth.", "math": f"π = {round(modern_val, 8)}"}
-        ]
-        anc_curve = [3.1, 3.13, 3.15, 3.16, ancient_val]
-        mod_curve = [round(modern_val, 6)] * 5
+        N = 20000.0
+        ancient_val, steps_ancient, anc_history, contribs = execute_aryabhata_pi_static()
+        modern_val, steps_modern, mod_history = execute_modern_machin_pi()
+        is_exact = False
+        rem_val = 0.0
+        chart_kind = "construction"
+        ancient_label = "Construction stages (62,000 → +800 → +32) / 20,000"
+        modern_label = "Machin series partial sums"
+        reference_lines = {}
 
     elif method == "bhaskara2_pi":
-        ancient_val = 3927.0 / 1250.0
-        modern_val = math.pi
-        steps_ancient = [
-            {"step": 1, "theory": "Multiply diameter by 3927 (bhanandāgni).", "math": "d * 3927"},
-            {"step": 2, "theory": "Divide by 1250 (khabāṇasūrya).", "math": "(d * 3927) / 1250"},
-            {"step": 3, "theory": "Yield accurate fine circumference ratio.", "math": f"π ≈ 3927 / 1250 = {round(ancient_val, 6)}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Access hardware constant.", "math": "math.pi"},
-            {"step": 2, "theory": "Return ground truth.", "math": f"π = {round(modern_val, 8)}"}
-        ]
-        anc_curve = [3.1, 3.12, 3.13, 3.14, ancient_val]
-        mod_curve = [round(modern_val, 6)] * 5
+        N = 1250.0
+        ancient_val, steps_ancient, anc_history, contribs, P384 = execute_bhaskara2_pi_static()
+        modern_val, steps_modern, mod_history = execute_modern_machin_pi()
+        is_exact = False
+        rem_val = 0.0
+        extra = {"P384": P384}
+        chart_kind = "construction"
+        ancient_label = "Inscribed polygon 6→384-gon, then 3927/1250"
+        modern_label = "Machin series partial sums"
+        reference_lines = {"22/7 (sthūla)": 3.142857}
 
-    else:  # madhava_11digit_pi (Corrected 9 nikharvas denominator = 900,000,000,000)
-        ancient_val = 2827433388233.0 / 900000000000.0
-        modern_val = math.pi
-        steps_ancient = [
-            {"step": 1, "theory": "Encode Sanskrit word-numerals (Bhūta-saṅkhyā) right-to-left: 2,827,433,388,233.", "math": "2,827,433,388,233"},
-            {"step": 2, "theory": "Divide by 9 nikharvas (9 * 10¹¹ = 900,000,000,000).", "math": "2827433388233 / 900000000000"},
-            {"step": 3, "theory": "Yield 11-decimal precision approximation.", "math": f"π ≈ {ancient_val}"}
-        ]
-        steps_modern = [
-            {"step": 1, "theory": "Access hardware constant.", "math": "math.pi"},
-            {"step": 2, "theory": "Return ground truth.", "math": f"π = {round(modern_val, 8)}"}
-        ]
-        anc_curve = [3.14, 3.141, 3.1415, 3.14159, ancient_val]
-        mod_curve = [round(modern_val, 6)] * 5
+    if method != "aryabhata_sinetable":
+        max_len = max(len(anc_history), len(mod_history))
+        while len(anc_history) < max_len:
+            anc_history.append(anc_history[-1])
+        while len(mod_history) < max_len:
+            mod_history.append(mod_history[-1])
+        labels_iter = [f"Step {i+1}" for i in range(max_len)]
 
     abs_err = abs(ancient_val - modern_val)
     ref_val = abs(modern_val) if modern_val != 0 else 1.0
-    accuracy = 100.0 / (1.0 + (abs_err / ref_val))
-    accuracy = max(0.0, min(100.0, accuracy))
+    rel_err_percent = (abs_err / ref_val) * 100.0
+    accuracy_pct = max(0.0, min(100.0, 100.0 - rel_err_percent))
+    k_match = matching_decimals(ancient_val, modern_val)
+
+    xai_data = build_xai_explanations(method, N, ancient_val, modern_val, is_exact if method in ("aryabhata_sqrt", "aryabhata_cuberoot") else False, rem_val, contribs, extra=extra)
 
     return {
         "method_id": method,
+        "sutra_type": SUTRAS_DB[method]["type"],
         "input_value": N,
         "ancient_computed_result": round(ancient_val, 6),
         "modern_computed_result": round(modern_val, 6),
-        "accuracy_percent": round(accuracy, 4),
         "absolute_error": round(abs_err, 8),
+        "relative_error_percent": round(rel_err_percent, 6),
+        "significant_digits_match": k_match,
+        "standard_accuracy_percent": round(accuracy_pct, 4),
+        "accuracy_percent": round(accuracy_pct, 4),
+        "error_formulas": {
+            "abs_formula": f"E_abs = |V_ancient - V_modern| = |{round(ancient_val, 6)} - {round(modern_val, 6)}| = {round(abs_err, 8)}",
+            "rel_formula": f"E_rel(%) = (E_abs / |V_modern|) × 100 = ({round(abs_err, 8)} / {round(ref_val, 6)}) × 100 = {round(rel_err_percent, 6)}%",
+            "precision_formula": f"Rounded agreement to {k_match} decimal place(s) (|error| = {abs_err:.2e})",
+            "bounded_formula": f"Acc(%) = max(0, 100 - E_rel(%)) = {round(accuracy_pct, 4)}%"
+        },
         "steps_ancient": steps_ancient,
         "steps_modern": steps_modern,
-        "xai_rationale": {
-            "input_rationale": f"Method '{method}' processed with parameter N = {N}.",
-            "ancient_logic": "The selected classical sutra employs recursive rational expansions and algorithmic digit-extraction error bounding.",
-            "convergence_analysis": f"Absolute deviation between ancient computation and IEEE 754 hardware standard is < {max(abs_err, 1e-7):.2e}."
-        },
+        "xai_rationale": xai_data,
         "graph_data": {
-            "iterations": ["Iter 1", "Iter 2", "Iter 3", "Iter 4", "Iter 5 (Final)"],
-            "ancient_curve": anc_curve,
-            "modern_curve": mod_curve
+            "iterations": labels_iter,
+            "ancient_curve": [round(x, 6) for x in anc_history],
+            "modern_curve": [round(x, 6) for x in mod_history],
+            "chart_kind": chart_kind,
+            "ancient_label": ancient_label,
+            "modern_label": modern_label,
+            "reference_lines": reference_lines
         }
     }
 
 @app.get("/api/sutras")
 def get_sutras_list():
     return [{"id": k, **v} for k, v in SUTRAS_DB.items()]
+
+from ai_explain import router as ai_router
+app.include_router(ai_router)
 
 if __name__ == "__main__":
     import uvicorn
