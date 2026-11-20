@@ -1,29 +1,28 @@
-# PRISM — Explainable AI Framework for Computational Modeling of Ancient Indian Mathematical Approximation Techniques
+# Prism — Explainable AI Framework for Computational Modeling of Ancient Indian Mathematical Approximation Techniques
 
-\<p align="center">
-&#x20; \<strong>Bridging Classical Indian Mathematics and Modern Explainable Artificial Intelligence\</strong>
-\</p>
+<p align="center">
+  <strong>Bridging Classical Indian Mathematics and Modern Explainable Artificial Intelligence</strong>
+</p>
 
-\<p align="center">
-&#x20; \<img src="[https://img.shields.io/badge/Python-3.10%2B-blue?logo=python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)" />
-&#x20; \<img src="[https://img.shields.io/badge/FastAPI-0.162.0-009688?logo=fastapi](https://img.shields.io/badge/FastAPI-0.162.0-009688?logo=fastapi)" />
-&#x20; \<img src="[https://img.shields.io/badge/React-19-61DAFB?logo=react](https://img.shields.io/badge/React-19-61DAFB?logo=react)" />
-&#x20; \<img src="[https://img.shields.io/badge/Vite-8-646CFF?logo=vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite)" />
-&#x20; \<img src="[https://img.shields.io/badge/scikit--learn-1.9.1-F7931E?logo=scikitlearn](https://img.shields.io/badge/scikit--learn-1.9.1-F7931E?logo=scikitlearn)" />
-&#x20; \<img src="[https://img.shields.io/badge/SHAP-0.54.1-purple](https://img.shields.io/badge/SHAP-0.54.1-purple)" />
-&#x20; \<img src="[https://img.shields.io/badge/Explainable_AI-XAI-blueviolet](https://img.shields.io/badge/Explainable_AI-XAI-blueviolet)" />
-&#x20; \<img src="[https://img.shields.io/badge/Status-Implemented-success](https://img.shields.io/badge/Status-Implemented-success)" />
-\</p>
-
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-blue?logo=python" alt="Python" />
+  <img src="https://img.shields.io/badge/FastAPI-0.162.0-009688?logo=fastapi" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react" alt="React" />
+  <img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite" alt="Vite" />
+  <img src="https://img.shields.io/badge/scikit--learn-1.9.1-F7931E?logo=scikitlearn" alt="Scikit-learn" />
+  <img src="https://img.shields.io/badge/SHAP-0.54.1-purple" alt="SHAP" />
+  <img src="https://img.shields.io/badge/Explainable_AI-XAI-blueviolet" alt="Explainable AI" />
+  <img src="https://img.shields.io/badge/Status-Implemented-success" alt="Status" />
+</p>
 ---
 
 ## 1. Overview
 
-**PRISM** is a full-stack computational modeling and Explainable Artificial Intelligence (XAI) framework that reconstructs, executes, and evaluates five classical Indian mathematical approximation techniques documented in the *Āryabhaṭīya* (499 CE) and *Līlāvatī* (1150 CE).
+**Prism** is a full-stack computational modeling and Explainable Artificial Intelligence (XAI) framework that reconstructs, executes, and evaluates five classical Indian mathematical approximation techniques documented in the *Āryabhaṭīya* (499 CE) and *Līlāvatī* (1150 CE).
 
 The framework investigates how historical mathematical procedures compare with modern numerical methods and IEEE-754 double-precision arithmetic.
 
-Rather than treating historical algorithms as black boxes or indiscriminately applying machine learning explainers to deterministic mathematical computations, PRISM introduces a **two-layer explainability architecture**:
+Rather than treating historical algorithms as black boxes or indiscriminately applying machine learning explainers to deterministic mathematical computations, Prism introduces a **two-layer explainability architecture**:
 
 - **Layer 1 — Deterministic White-Box Explainability:** Reconstructs and executes all five mathematical techniques using Python's `Decimal` arithmetic, exposing intermediate calculations, iterative states, remainders, and exact numerical contributions.
 - **Layer 2 — AI-Assisted Error Attribution:** Uses a Decision Tree surrogate model and SHAP (SHapley Additive exPlanations) to explain the error behavior of the Āryabhaṭa sine-table approximation.
@@ -891,7 +890,8 @@ Once both servers are running:
 
 ---
 
-\<p align="center">
-&#x20; \<strong>PRISM\</strong>\<br/>
-&#x20; Making mathematical computation transparent, interpretable, and explainable.
-\</p>
+<p align="center">
+  <strong>PRISM</strong>
+  <br/>
+  Making mathematical computation transparent, interpretable, and explainable.
+</p>
