@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/scikit--learn-1.9.1-F7931E?logo=scikitlearn" alt="Scikit-learn" />
   <img src="https://img.shields.io/badge/SHAP-0.54.1-purple" alt="SHAP" />
   <img src="https://img.shields.io/badge/Explainable_AI-XAI-blueviolet" alt="Explainable AI" />
-  <img src="https://img.shields.io/badge/Status-Implemented-success" alt="Status" />
+  
 </p>
 ---
 
