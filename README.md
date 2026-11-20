@@ -891,7 +891,7 @@ Once both servers are running:
 ---
 
 <p align="center">
-  <strong>PRISM</strong>
+  <strong>Prism</strong>
   <br/>
   Making mathematical computation transparent, interpretable, and explainable.
 </p>
